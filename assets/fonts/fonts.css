@@ -1,0 +1,13 @@
+
+@font-face {
+    font-family: 'A';
+    src: url('A-bold.otf') format('opentype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+html, body{
+    font-family: 'A', sans-serif;
+    font-weight: bold;
+    /* filter: blur(0.3px); */
+}   

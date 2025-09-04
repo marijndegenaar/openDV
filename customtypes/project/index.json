@@ -1,0 +1,218 @@
+{
+  "format": "page",
+  "id": "project",
+  "label": "Project",
+  "repeatable": true,
+  "status": true,
+  "json": {
+    "Main": {
+      "uid": {
+        "type": "UID",
+        "config": {
+          "label": "UID"
+        }
+      },
+      "project_category": {
+        "type": "Select",
+        "config": {
+          "label": "Project category",
+          "placeholder": "",
+          "options": [
+            "Short film",
+            "Feature film",
+            "Photography",
+            "Music video",
+            "Video campaign",
+            "Concept video"
+          ]
+        }
+      },
+      "project_title": {
+        "type": "Text",
+        "config": {
+          "label": "Project title",
+          "placeholder": ""
+        }
+      },
+      "subtitle": {
+        "type": "Text",
+        "config": {
+          "label": "Subtitle",
+          "placeholder": ""
+        }
+      },
+      "year": {
+        "type": "Number",
+        "config": {
+          "label": "Year",
+          "placeholder": ""
+        }
+      },
+      "title_image": {
+        "type": "Image",
+        "config": {
+          "label": "Title Image",
+          "constraint": {},
+          "thumbnails": []
+        }
+      },
+      "project_description": {
+        "type": "StructuredText",
+        "config": {
+          "label": "Project description",
+          "placeholder": "",
+          "allowTargetBlank": true,
+          "multi": "paragraph,strong,em,hyperlink,list-item"
+        }
+      },
+      "video_embed": {
+        "type": "Embed",
+        "config": {
+          "label": "Video embed",
+          "placeholder": ""
+        }
+      },
+      "credits": {
+        "type": "Group",
+        "config": {
+          "label": "Credits",
+          "repeat": true,
+          "fields": {
+            "credit_title": {
+              "type": "Text",
+              "config": {
+                "label": "Credit Title",
+                "placeholder": ""
+              }
+            },
+            "credit_name": {
+              "type": "Text",
+              "config": {
+                "label": "Credit Name",
+                "placeholder": ""
+              }
+            }
+          }
+        }
+      },
+      "logos": {
+        "type": "Group",
+        "config": {
+          "label": "Logos",
+          "repeat": true,
+          "fields": {
+            "logo": {
+              "type": "Image",
+              "config": {
+                "label": "Logo",
+                "constraint": {},
+                "thumbnails": []
+              }
+            },
+            "title": {
+              "type": "Text",
+              "config": {
+                "label": "Title",
+                "placeholder": ""
+              }
+            },
+            "subtitle": {
+              "type": "Text",
+              "config": {
+                "label": "Subtitle",
+                "placeholder": ""
+              }
+            },
+            "link": {
+              "type": "Link",
+              "config": {
+                "label": "Link",
+                "placeholder": "",
+                "select": null,
+                "allowTargetBlank": true,
+                "allowText": false,
+                "repeat": false
+              }
+            }
+          }
+        }
+      },
+      "slices": {
+        "type": "Slices",
+        "fieldset": "Slice Zone",
+        "config": {
+          "choices": {}
+        }
+      }
+    },
+    "SEO & Metadata": {
+      "meta_title": {
+        "config": {
+          "label": "Meta Title",
+          "placeholder": "A title of the page used for social media and search engines"
+        },
+        "type": "Text"
+      },
+      "meta_description": {
+        "config": {
+          "label": "Meta Description",
+          "placeholder": "A brief summary of the page"
+        },
+        "type": "Text"
+      },
+      "meta_image": {
+        "config": {
+          "constraint": {
+            "height": 1260,
+            "width": 2400
+          },
+          "label": "Meta Image",
+          "thumbnails": []
+        },
+        "type": "Image"
+      }
+    },
+    "Media": {
+      "featured_video": {
+        "type": "Link",
+        "config": {
+          "label": "Featured Video",
+          "placeholder": "",
+          "select": "media",
+          "allowText": false
+        }
+      },
+      "video_link": {
+        "type": "Text",
+        "config": {
+          "label": "Featured video link",
+          "placeholder": ""
+        }
+      },
+      "embed_code": {
+        "type": "Text",
+        "config": {
+          "label": "Featured embed code",
+          "placeholder": ""
+        }
+      },
+      "slideshow": {
+        "type": "Group",
+        "config": {
+          "label": "Slideshow",
+          "repeat": true,
+          "fields": {
+            "image": {
+              "type": "Image",
+              "config": {
+                "label": "Image",
+                "constraint": {},
+                "thumbnails": []
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
