@@ -6,7 +6,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'Simone Bozzelli',
+      title: 'OPEN DV',
       charset: 'utf-8',
       viewport: 'width=device-width, minimal-ui initial-scale=1, user-scalable=no',
       link: [

@@ -1,12 +1,18 @@
 <template lang="pug">
-.diagram.flex.flex-col.h-screen
-  .prismic-header(v-if="prismicData")
-    h1 {{ prismicData.title }}
-  .chart-container(ref="chartContainer")
-  .loading(v-if="loading") Loading data...
-  .error(v-if="error") {{ error }}
-  .debug-info
-    p Debug: {{ debugInfo }}
+.flex.flex-col.md_flex-row
+  .diagram.flex.flex-col.h-3x4.md_h-screen.md_w-3x4
+    .chart-container.flex-1.min-h-96.border.border-gray-300.rounded-lg.bg-gray-50.overflow-auto(ref="chartContainer")
+    .loading.text-center.p-5.text-gray-600.italic(v-if="loading") Loading data...
+    .error.text-center.p-5.text-red-600.bg-red-50.border.border-red-200.rounded.mx-2(v-if="error") {{ error }}
+    .debug-info.text-center.p-2.text-gray-500.text-sm.mt-2
+      p Debug: {{ debugInfo }}
+  .info-container.p-2.bg-gray-50.border-l.border-gray-300.h-screen.overflow-y-auto.w-full.md_w-1x4
+    .event-info.p-4(v-if="selectedEvent")
+      h3.event-title.text-lg.font-bold.text-green-600.mb-3.leading-tight {{ selectedEvent.title }}
+      .event-year.text-gray-600.text-sm.mb-4.font-medium Year: {{ selectedEvent.year }}
+      .event-description.text-gray-800.text-sm.leading-relaxed.m-0 {{ selectedEvent.description }}
+    .no-selection.p-4.text-center.text-gray-600.italic(v-else)
+      p Click on an event node to view its description
 </template>
 
 <script setup>
@@ -19,10 +25,10 @@ const { client } = usePrismic()
 
 // ===== CONSTANTS & CONFIGURATION =====
 const CHART_CONFIG = {
-  margins: { top: 20, right: 400, bottom: 20, left: 20 },
+  margins: { top: 20, right: 200, bottom: 20, left: 20 },
   minWidth: 300,
   minHeight: 500,
-  nodeWidth: 80,
+  nodeWidth: 20,
   nodePadding: 15,
   cornerRadius: 8,
   defaultOpacity: 0.5, // Default opacity for all elements (50%)
@@ -48,6 +54,7 @@ const error = ref(null)
 const debugInfo = ref('Initializing...')
 const currentData = ref(null)
 const prismicData = ref(null)
+const selectedEvent = ref(null)
 
 // ===== RESIZE OBSERVER =====
 let resizeObserver = null
@@ -171,7 +178,7 @@ function transformCSVToSankey(csvData, themes) {
         links.push({
           source: themeIndex,
           target: eventIndex,
-          value: 1,
+          value: 2, // Increased value for better node sizing
           description: row.Title || row.title,
           fullDescription: row.Description || row.description,
           year: parseInt(row.Year || row.year),
@@ -267,8 +274,8 @@ function createTooltip() {
 
 // ===== CHART ELEMENTS CREATION =====
 function createChartElements(svg, result, width, tooltip) {
-  const links = createLinks(svg, result, tooltip)
-  const nodes = createNodes(svg, result, width)
+  const nodes = createNodes(svg, result, width)  // Create nodes first
+  const links = createLinks(svg, result, tooltip)  // Then links on top
   const labels = createLabels(svg, result, width)
   
   return { links, nodes, labels }
@@ -286,27 +293,77 @@ function createLinks(svg, result, tooltip) {
     .attr("opacity", CHART_CONFIG.defaultOpacity)
     .attr("class", "link")
     .style("cursor", "pointer")
+    .style("pointer-events", "stroke") // Only respond to clicks on the stroke, not the fill
     .style("transition", "opacity 0.3s ease")
     .call(addTooltipEvents, tooltip)
 }
 
 function createNodes(svg, result, width) {
-  return svg.append("g")
-    .selectAll("rect")
+  const nodes = svg.append("g")
+    .selectAll("path")
     .data(result.nodes)
-    .enter().append("rect")
-    .attr("x", d => d.x0)
-    .attr("y", d => d.x0 < width / 2 ? d.y0 : d.y0 - 5)
-    .attr("height", d => d.x0 < width / 2 ? d.y1 - d.y0 : (d.y1 - d.y0) + 10)
-    .attr("width", d => d.x1 - d.x0)
-    .attr("fill", d => d.x0 < width / 2 ? COLORS.custom[d.index % COLORS.custom.length] : COLORS.event)
+    .enter().append("path")
+    .attr("d", d => {
+      const x = d.x0
+      const y = d.x0 < width / 2 ? d.y0 : d.y0 - 5
+      const w = d.x1 - d.x0
+      const h = Math.max(20, d.y1 - d.y0)
+      const r = CHART_CONFIG.cornerRadius
+      
+      if (d.x0 < width / 2) {
+        // Theme nodes - left-only rounded corners
+        return `M ${x + r} ${y} 
+                L ${x + w} ${y} 
+                L ${x + w} ${y + h} 
+                L ${x + r} ${y + h} 
+                Q ${x} ${y + h} ${x} ${y + h - r} 
+                L ${x} ${y + r} 
+                Q ${x} ${y} ${x + r} ${y} Z`
+      } else {
+        // Event nodes - fully rounded corners
+        return `M ${x + r} ${y} 
+                L ${x + w - r} ${y} 
+                Q ${x + w} ${y} ${x + w} ${y + r} 
+                L ${x + w} ${y + h - r} 
+                Q ${x + w} ${y + h} ${x + w - r} ${y + h} 
+                L ${x + r} ${y + h} 
+                Q ${x} ${y + h} ${x} ${y + h - r} 
+                L ${x} ${y + r} 
+                Q ${x} ${y} ${x + r} ${y} Z`
+      }
+    })
+    .attr("fill", d => d.x0 < width / 2 ? COLORS.custom[d.index % COLORS.custom.length] : "#8863EB") // Purple background for year nodes
     .attr("stroke", COLORS.border)
     .attr("stroke-width", 1)
-    .attr("rx", d => d.x0 >= width / 2 ? CHART_CONFIG.cornerRadius : 0)
-    .attr("ry", d => d.x0 >= width / 2 ? CHART_CONFIG.cornerRadius : 0)
-    .attr("class", "node")
+    .attr("class", d => d.x0 < width / 2 ? "node theme-node" : "node event-node")
     .style("cursor", "pointer")
+    .style("pointer-events", "all")
     .style("transition", "opacity 0.3s ease")
+  
+  // Add click handlers for event nodes (right side)
+  nodes.filter(d => d.x0 >= width / 2)
+    .on("click", (event, d) => {
+      console.log('CLICK DETECTED!', event, d)
+      event.stopPropagation()
+      
+      // Remove previous selection
+      nodes.classed("selected", false)
+      
+      // Add selection to clicked node
+      d3.select(event.currentTarget).classed("selected", true)
+      
+      selectedEvent.value = {
+        title: d.title,
+        year: d.year,
+        description: d.description
+      }
+      console.log('Selected event set to:', selectedEvent.value)
+    })
+    .on("mousedown", (event, d) => {
+      console.log('MOUSEDOWN on event node:', d)
+    })
+  
+  return nodes
 }
 
 function createLabels(svg, result, width) {
@@ -342,7 +399,7 @@ function createYearLabels(svg, result, width, fontSize) {
     .data(result.nodes.filter(d => d.x0 >= width / 2))
     .enter().append("text")
     .attr("x", d => (d.x0 + d.x1) / 2)
-    .attr("y", d => (d.y1 + d.y0 - 5) / 2 + 5)
+    .attr("y", d => (d.y1 + d.y0) / 2)
     .attr("dy", "0.35em")
     .attr("text-anchor", "middle")
     .text(d => d.year)
@@ -363,11 +420,35 @@ function createTitleLabels(svg, result, width, fontSize) {
     .attr("dy", "0.35em")
     .attr("text-anchor", "start")
     .text(d => d.title)
-    .attr("font-size", `${fontSize - 3}px`)
+    .attr("font-size", `${fontSize - 1}px`)
     .attr("fill", COLORS.text.primary)
     .attr("font-weight", "bold")
-    .attr("class", "label")
-    .style("pointer-events", "none")
+    .attr("class", "label title-label")
+    .style("cursor", "pointer")
+    .style("pointer-events", "all")
+    .on("click", (event, d) => {
+      console.log('TITLE CLICKED!', event, d)
+      event.stopPropagation()
+      
+      // Remove previous selection from all nodes
+      d3.selectAll(".node").classed("selected", false)
+      
+      // Add selection to the corresponding node
+      d3.selectAll(".node").filter(nodeData => nodeData === d).classed("selected", true)
+      
+      selectedEvent.value = {
+        title: d.title,
+        year: d.year,
+        description: d.description
+      }
+      console.log('Selected event set to:', selectedEvent.value)
+    })
+    .on("mouseenter", function() {
+      d3.select(this).style("fill", "#2E8B57").style("text-decoration", "underline")
+    })
+    .on("mouseleave", function() {
+      d3.select(this).style("fill", COLORS.text.primary).style("text-decoration", "none")
+    })
 }
 
 // ===== TOOLTIP EVENTS =====
@@ -480,62 +561,42 @@ function resetHighlighting(links, nodes, labels) {
 </script>
 
 <style scoped>
+.h-3x4 {
+  @media (max-width: 767px) { /* Applies to screens smaller than Tailwind's 'md' breakpoint */
+    height: 75vh;
+  }
+}
+/* Custom styles that can't be easily replaced with Tailwind */
 
-.prismic-header {
-  margin-bottom: 20px;
-  text-align: center;
+/* Selected event node styling for D3 elements */
+:deep(.node.selected) {
+  stroke: #ff6b35 !important;
+  stroke-width: 3px !important;
+  filter: drop-shadow(0 0 8px rgba(255, 107, 53, 0.4));
 }
 
-.prismic-header h1 {
-  color: #333;
-  font-size: 2.5rem;
-  margin: 0;
-  font-weight: 300;
+/* Make all node colors vibrant */
+:deep(.node) {
+  opacity: 1 !important; /* Make colors vibrant */
+  filter: none !important; /* Remove any opacity filters */
 }
 
-.chart-container {
-  flex: 1;
-  min-height: 600px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: #fafafa;
-  overflow: auto;
-}
-
-.loading {
-  text-align: center;
-  padding: 20px;
-  color: #666;
-  font-style: italic;
-}
-
-.error {
-  text-align: center;
-  padding: 20px;
-  color: #d32f2f;
-  background: #ffebee;
-  border: 1px solid #ffcdd2;
-  border-radius: 4px;
-  margin: 10px;
-}
-
-.debug-info {
-  text-align: center;
-  padding: 10px;
-  color: #555;
-  font-size: 0.9em;
-  margin-top: 10px;
-}
-
+/* Responsive adjustments for mobile */
 @media (max-width: 768px) {
-  .diagram { padding: 10px; }
-  .chart-container { min-height: 400px; }
-  .prismic-header h1 { font-size: 2rem; }
+  .diagram { 
+    padding: 10px; 
+  }
+  .chart-container { 
+    min-height: 400px; 
+  }
 }
 
 @media (max-width: 480px) {
-  .diagram { padding: 5px; }
-  .chart-container { min-height: 350px; }
-  .prismic-header h1 { font-size: 1.5rem; }
+  .diagram { 
+    padding: 5px; 
+  }
+  .chart-container { 
+    min-height: 350px; 
+  }
 }
 </style>

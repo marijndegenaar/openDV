@@ -1,13 +1,41 @@
 
 @font-face {
-    font-family: 'A';
+    font-family: 'Haas';
     src: url('A-bold.otf') format('opentype');
     font-weight: bold;
     font-style: normal;
 }
 
+@font-face {
+    font-family: 'NeueHaas';
+    src: url('NeueHaasDisplayRoman.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'NeueHaas';
+    src: url('NeueHaasDisplayRomanItalic.ttf') format('truetype');
+    font-weight: normal;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: 'NeueHaas';
+    src: url('NeueHaasDisplayBold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'NeueHaas';
+    src: url('NeueHaasDisplayBoldItalic.ttf') format('truetype');
+    font-weight: bold;
+    font-style: italic;
+}
+
 html, body{
-    font-family: 'A', sans-serif;
+    font-family: 'Haas', sans-serif;
     font-weight: bold;
     /* filter: blur(0.3px); */
 }   
