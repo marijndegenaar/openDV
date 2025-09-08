@@ -8,7 +8,7 @@
       p Debug: {{ debugInfo }}
   .info-container.p-2.bg-gray-50.border-l.border-gray-300.h-screen.overflow-y-auto.w-full.md_w-1x4
     .event-info.p-4(v-if="selectedEvent")
-      h3.event-title.text-lg.font-bold.text-green-600.mb-3.leading-tight {{ selectedEvent.title }}
+      h3.event-title.text-lg.font-bold.mb-3.leading-tight {{ selectedEvent.title }}
       .event-year.text-gray-600.text-sm.mb-4.font-medium Year: {{ selectedEvent.year }}
       .event-description.text-gray-800.text-sm.leading-relaxed.m-0 {{ selectedEvent.description }}
     .no-selection.p-4.text-center.text-gray-600.italic(v-else)
@@ -19,23 +19,28 @@
 import * as d3 from 'd3'
 import { sankey, sankeyLinkHorizontal } from 'd3-sankey'
 
-// ===== PRISMIC INTEGRATION =====
+// ===== COMPOSITION API SETUP =====
 const route = useRoute()
 const { client } = usePrismic()
 
-// ===== CONSTANTS & CONFIGURATION =====
+// ===== CONFIGURATION & CONSTANTS =====
 const CHART_CONFIG = {
-  margins: { top: 20, right: 200, bottom: 20, left: 20 },
+  margins: { top: 20, right: 300, bottom: 20, left: 20 },
   minWidth: 300,
   minHeight: 500,
   nodeWidth: 20,
-  nodePadding: 15,
+  nodePadding: 24,
   cornerRadius: 8,
-  defaultOpacity: 0.5, // Default opacity for all elements (50%)
-  linkOpacityHover: 1, // Full opacity on hover
-  backgroundOpacity: 0.1, // 10% opacity when backgrounded
+  // Node sizing for different types
+  themeNodeWidth: 20,       // Theme nodes (left side)
+  yearNodeWidth: 40,        // Year nodes (right side) - wider for better visibility
+  // Opacity settings for visual hierarchy
+  defaultOpacity: 0.5,      // Default opacity for all elements (50%)
+  linkOpacityHover: 1,      // Full opacity on hover
+  backgroundOpacity: 0.1,   // 10% opacity when backgrounded
   nodeOpacityHighlight: 0.9, // 90% opacity when highlighted
-  fontSize: { base: 10, min: 10, max: 14, title: { min: 14, max: 18 } },
+  // Typography settings
+  fontSize: { base: 14, min: 18, max: 24, title: { min: 14, max: 22 } },
   tooltipOffset: 15
 }
 
@@ -44,7 +49,10 @@ const COLORS = {
   event: '#2E8B57',
   border: '#000',
   text: { primary: '#333', white: '#fff' },
-  tooltip: { bg: 'rgba(0,0,0,0.9)', shadow: '0 4px 8px rgba(0,0,0,0.3)' }
+  tooltip: { 
+    bg: 'rgba(0,0,0,0.9)', 
+    shadow: '0 4px 8px rgba(0,0,0,0.3)' 
+  }
 }
 
 // ===== REACTIVE STATE =====
@@ -56,10 +64,8 @@ const currentData = ref(null)
 const prismicData = ref(null)
 const selectedEvent = ref(null)
 
-// ===== RESIZE OBSERVER =====
+// ===== LIFECYCLE & OBSERVERS =====
 let resizeObserver = null
-
-// ===== LIFECYCLE HOOKS =====
 onMounted(async () => {
   debugInfo.value = 'Component mounted, starting Prismic data load...'
   await loadPrismicData()
@@ -70,14 +76,18 @@ onUnmounted(() => {
   if (resizeObserver) resizeObserver.disconnect()
 })
 
-// ===== PRISMIC DATA LOADING =====
+// ===== DATA LOADING FUNCTIONS =====
+/**
+ * Loads diagram configuration and CSV data from Prismic CMS
+ * Handles the initial data fetching and error states
+ */
 async function loadPrismicData() {
   try {
     loading.value = true
     error.value = null
     debugInfo.value = 'Loading Prismic data...'
     
-    // Fetch the diagram page from Prismic
+    // Fetch the diagram page from Prismic using the UID from the route
     const { data } = await client.getByUID('diagram', route.params.uid)
     
     if (!data) {
@@ -87,7 +97,7 @@ async function loadPrismicData() {
     prismicData.value = data
     debugInfo.value = `Prismic data loaded: ${data.title}`
     
-    // Load CSV data from the csv_file field
+    // Load CSV data from the csv_file field in Prismic
     if (data.csv_file?.url) {
       await loadCSVData(data.csv_file.url)
     } else {
@@ -96,19 +106,21 @@ async function loadPrismicData() {
     
   } catch (err) {
     console.error('Error loading Prismic data:', err)
-    error.value = err.message
+    error.value = err.message || 'Failed to load diagram data'
     debugInfo.value = `Prismic failed: ${err.message}`
     loading.value = false
   }
 }
 
-// ===== CSV DATA LOADING =====
+/**
+ * Loads and processes CSV data from the provided URL
+ * Extracts themes and transforms data for Sankey diagram
+ */
 async function loadCSVData(csvUrl) {
   try {
     debugInfo.value = 'Loading CSV data from Prismic...'
     
     const csvData = await d3.csv(csvUrl)
-    console.log('Raw CSV data from Prismic:', csvData)
     debugInfo.value = `CSV loaded: ${csvData.length} rows`
     
     if (!csvData?.length) throw new Error('CSV data was empty')
@@ -117,12 +129,9 @@ async function loadCSVData(csvUrl) {
     const allThemes = csvData.map(row => row.Theme || row.theme)
     const themes = [...new Set(allThemes.flatMap(themeString => themeString.split(';').map(t => t.trim())))]
     
-    console.log('All theme strings from CSV:', allThemes)
-    console.log('Unique themes after splitting:', themes)
     debugInfo.value = `Found ${themes.length} unique themes and ${csvData.length} events`
     
     const sankeyData = transformCSVToSankey(csvData, themes)
-    console.log('Transformed Sankey data:', sankeyData)
     debugInfo.value = `CSV processed: ${sankeyData.nodes.length} nodes (${themes.length} themes + ${csvData.length} events) with ${sankeyData.links.length} total connections`
     
     loading.value = false
@@ -131,13 +140,17 @@ async function loadCSVData(csvUrl) {
     
   } catch (err) {
     console.error('Error loading CSV data:', err)
-    error.value = err.message
+    error.value = err.message || 'Failed to load CSV data'
     debugInfo.value = `CSV failed: ${err.message}`
     loading.value = false
   }
 }
 
-// ===== DATA TRANSFORMATION =====
+// ===== DATA TRANSFORMATION FUNCTIONS =====
+/**
+ * Transforms CSV data into Sankey diagram format
+ * Creates nodes for themes and events, and links between them
+ */
 function transformCSVToSankey(csvData, themes) {
   const sortedData = [...csvData].sort((a, b) => {
     const yearDiff = parseInt(a.Year || a.year) - parseInt(b.Year || b.year)
@@ -145,14 +158,14 @@ function transformCSVToSankey(csvData, themes) {
   })
   
   const nodes = [
-    // Theme nodes (left side)
+    // Theme nodes (left side of diagram)
     ...themes.map((theme, index) => ({
       id: index,
       name: theme,
       type: 'theme',
       x_position: 0
     })),
-    // Event nodes (right side)
+    // Event nodes (right side of diagram)
     ...sortedData.map((row, index) => ({
       id: themes.length + index,
       name: `${row.Year || row.year} - ${row.Title || row.title}`,
@@ -170,7 +183,6 @@ function transformCSVToSankey(csvData, themes) {
     const eventIndex = themes.length + index
     const eventThemes = (row.Theme || row.theme).split(';').map(t => t.trim())
     
-    console.log(`Event "${row.Title || row.title}" has themes:`, eventThemes)
     
     eventThemes.forEach(theme => {
       const themeIndex = themes.indexOf(theme)
@@ -178,24 +190,24 @@ function transformCSVToSankey(csvData, themes) {
         links.push({
           source: themeIndex,
           target: eventIndex,
-          value: 2, // Increased value for better node sizing
+          value: 2, // Link weight for visual sizing
           description: row.Title || row.title,
           fullDescription: row.Description || row.description,
           year: parseInt(row.Year || row.year),
           theme: theme
         })
-      } else {
-        console.warn(`Theme "${theme}" not found in themes list:`, themes)
       }
     })
   })
   
-  console.log(`Created ${links.length} links for ${sortedData.length} events`)
-  
   return { nodes, links }
 }
 
-// ===== RESIZE HANDLING =====
+// ===== RESIZE HANDLING FUNCTIONS =====
+/**
+ * Sets up a ResizeObserver to redraw the chart when container size changes
+ * Ensures the diagram remains responsive to window resizing
+ */
 function setupResizeObserver() {
   if (!chartContainer.value) return
   
@@ -207,27 +219,40 @@ function setupResizeObserver() {
   resizeObserver.observe(chartContainer.value)
 }
 
-// ===== CHART CREATION =====
+// ===== CHART CREATION FUNCTIONS =====
+/**
+ * Main function to create the Sankey diagram
+ * Handles container sizing, SVG creation, and element rendering
+ */
 function createSankeyDiagram(data) {
-  if (!data || !chartContainer.value) return
+  if (!data || !chartContainer.value) {
+    console.warn('Cannot create Sankey diagram: missing data or container')
+    return
+  }
   
-  const containerRect = chartContainer.value.getBoundingClientRect()
-  const width = Math.max(containerRect.width - CHART_CONFIG.margins.left - CHART_CONFIG.margins.right, CHART_CONFIG.minWidth)
-  const height = Math.max(containerRect.height - CHART_CONFIG.margins.top - CHART_CONFIG.margins.bottom, CHART_CONFIG.minHeight)
+  try {
+    const containerRect = chartContainer.value.getBoundingClientRect()
+    const width = Math.max(containerRect.width - CHART_CONFIG.margins.left - CHART_CONFIG.margins.right, CHART_CONFIG.minWidth)
+    const height = Math.max(containerRect.height - CHART_CONFIG.margins.top - CHART_CONFIG.margins.bottom, CHART_CONFIG.minHeight)
 
-  d3.select(chartContainer.value).selectAll("*").remove()
+    // Clear any existing chart
+    d3.select(chartContainer.value).selectAll("*").remove()
 
-  const svg = createSVGContainer(chartContainer.value, width, height, CHART_CONFIG.margins)
-  const result = createSankeyLayout(data, width, height)
-  const tooltip = createTooltip()
+    const svg = createSVGContainer(chartContainer.value, width, height, CHART_CONFIG.margins)
+    const result = createSankeyLayout(data, width, height)
+    const tooltip = createTooltip()
 
-  const { links, nodes, labels } = createChartElements(svg, result, width, tooltip)
-  
-  createTitle(svg, width)
-  addHoverInteractions(links, nodes, labels, width)
+    const { links, nodes, labels } = createChartElements(svg, result, width, tooltip)
+    
+    createTitle(svg, width)
+    addHoverInteractions(links, nodes, labels, width)
+  } catch (err) {
+    console.error('Error creating Sankey diagram:', err)
+    error.value = 'Failed to render diagram'
+    debugInfo.value = `Chart creation failed: ${err.message}`
+  }
 }
 
-// ===== SVG CONTAINER CREATION =====
 function createSVGContainer(container, width, height, margin) {
   return d3.select(container)
     .append("svg")
@@ -239,7 +264,6 @@ function createSVGContainer(container, width, height, margin) {
     .attr("transform", `translate(${margin.left},${margin.top})`)
 }
 
-// ===== SANKEY LAYOUT =====
 function createSankeyLayout(data, width, height) {
   return sankey()
     .nodeWidth(CHART_CONFIG.nodeWidth)
@@ -252,7 +276,6 @@ function createSankeyLayout(data, width, height) {
     .extent([[0, 0], [width, height]])(data)
 }
 
-// ===== TOOLTIP CREATION =====
 function createTooltip() {
   return d3.select("body").append("div")
     .attr("class", "sankey-tooltip")
@@ -263,7 +286,6 @@ function createTooltip() {
     .style("padding", "12px")
     .style("border-radius", "6px")
     .style("font-size", "12px")
-    .style("font-family", "Arial, sans-serif")
     .style("pointer-events", "none")
     .style("z-index", "1000")
     .style("box-shadow", COLORS.tooltip.shadow)
@@ -272,23 +294,38 @@ function createTooltip() {
     .style("white-space", "normal")
 }
 
-// ===== CHART ELEMENTS CREATION =====
 function createChartElements(svg, result, width, tooltip) {
-  const nodes = createNodes(svg, result, width)  // Create nodes first
-  const links = createLinks(svg, result, tooltip)  // Then links on top
+  const links = createLinks(svg, result, width, tooltip)  // Create links first (behind)
+  const nodes = createNodes(svg, result, width)  // Then nodes on top
   const labels = createLabels(svg, result, width)
   
   return { links, nodes, labels }
 }
 
-function createLinks(svg, result, tooltip) {
+function createLinks(svg, result, width, tooltip) {
+  // Adjust node positions for year nodes to account for wider width
+  const adjustedResult = {
+    ...result,
+    nodes: result.nodes.map(node => {
+      if (node.x0 >= width / 2) {
+        const adjustment = (CHART_CONFIG.yearNodeWidth - (node.x1 - node.x0)) / 2
+        return {
+          ...node,
+          x0: node.x0 - adjustment,
+          x1: node.x1 + adjustment
+        }
+      }
+      return node
+    })
+  }
+
   return svg.append("g")
     .selectAll("path")
-    .data(result.links)
+    .data(adjustedResult.links)
     .enter().append("path")
     .attr("d", sankeyLinkHorizontal())
     .attr("stroke", d => COLORS.custom[d.source.index % COLORS.custom.length])
-    .attr("stroke-width", d => Math.max(4, d.width + 2))
+    .attr("stroke-width", "8")
     .attr("fill", "none")
     .attr("opacity", CHART_CONFIG.defaultOpacity)
     .attr("class", "link")
@@ -299,69 +336,34 @@ function createLinks(svg, result, tooltip) {
 }
 
 function createNodes(svg, result, width) {
+  // Only create theme nodes (left side), year nodes are handled by CSS labels
   const nodes = svg.append("g")
     .selectAll("path")
-    .data(result.nodes)
+    .data(result.nodes.filter(d => d.x0 < width / 2)) // Only theme nodes
     .enter().append("path")
     .attr("d", d => {
       const x = d.x0
-      const y = d.x0 < width / 2 ? d.y0 : d.y0 - 5
-      const w = d.x1 - d.x0
+      const y = d.y0
+      const w = CHART_CONFIG.themeNodeWidth
       const h = Math.max(20, d.y1 - d.y0)
       const r = CHART_CONFIG.cornerRadius
       
-      if (d.x0 < width / 2) {
-        // Theme nodes - left-only rounded corners
-        return `M ${x + r} ${y} 
-                L ${x + w} ${y} 
-                L ${x + w} ${y + h} 
-                L ${x + r} ${y + h} 
-                Q ${x} ${y + h} ${x} ${y + h - r} 
-                L ${x} ${y + r} 
-                Q ${x} ${y} ${x + r} ${y} Z`
-      } else {
-        // Event nodes - fully rounded corners
-        return `M ${x + r} ${y} 
-                L ${x + w - r} ${y} 
-                Q ${x + w} ${y} ${x + w} ${y + r} 
-                L ${x + w} ${y + h - r} 
-                Q ${x + w} ${y + h} ${x + w - r} ${y + h} 
-                L ${x + r} ${y + h} 
-                Q ${x} ${y + h} ${x} ${y + h - r} 
-                L ${x} ${y + r} 
-                Q ${x} ${y} ${x + r} ${y} Z`
-      }
+      // Theme nodes - left-only rounded corners
+      return `M ${x + r} ${y} 
+              L ${x + w} ${y} 
+              L ${x + w} ${y + h} 
+              L ${x + r} ${y + h} 
+              Q ${x} ${y + h} ${x} ${y + h - r} 
+              L ${x} ${y + r} 
+              Q ${x} ${y} ${x + r} ${y} Z`
     })
-    .attr("fill", d => d.x0 < width / 2 ? COLORS.custom[d.index % COLORS.custom.length] : "#8863EB") // Purple background for year nodes
+    .attr("fill", d => COLORS.custom[d.index % COLORS.custom.length])
     .attr("stroke", COLORS.border)
     .attr("stroke-width", 1)
-    .attr("class", d => d.x0 < width / 2 ? "node theme-node" : "node event-node")
+    .attr("class", "node theme-node")
     .style("cursor", "pointer")
     .style("pointer-events", "all")
     .style("transition", "opacity 0.3s ease")
-  
-  // Add click handlers for event nodes (right side)
-  nodes.filter(d => d.x0 >= width / 2)
-    .on("click", (event, d) => {
-      console.log('CLICK DETECTED!', event, d)
-      event.stopPropagation()
-      
-      // Remove previous selection
-      nodes.classed("selected", false)
-      
-      // Add selection to clicked node
-      d3.select(event.currentTarget).classed("selected", true)
-      
-      selectedEvent.value = {
-        title: d.title,
-        year: d.year,
-        description: d.description
-      }
-      console.log('Selected event set to:', selectedEvent.value)
-    })
-    .on("mousedown", (event, d) => {
-      console.log('MOUSEDOWN on event node:', d)
-    })
   
   return nodes
 }
@@ -385,29 +387,44 @@ function createThemeLabels(svg, result, width, fontSize) {
     .attr("y", d => (d.y1 + d.y0) / 2)
     .attr("dy", "0.35em")
     .attr("text-anchor", "start")
-    .text(d => d.name)
+    .text(d => d.name.replace(/\b\w/g, l => l.toUpperCase())) // Title case: first letter of each word capitalized
     .attr("font-size", `${fontSize}px`)
     .attr("fill", COLORS.text.primary)
-    .attr("font-weight", "bold")
+    .attr("font-weight", "normal")
     .attr("class", "label")
     .style("pointer-events", "none")
 }
 
 function createYearLabels(svg, result, width, fontSize) {
   return svg.append("g")
-    .selectAll("text")
+    .selectAll("foreignObject")
     .data(result.nodes.filter(d => d.x0 >= width / 2))
-    .enter().append("text")
-    .attr("x", d => (d.x0 + d.x1) / 2)
-    .attr("y", d => (d.y1 + d.y0) / 2)
-    .attr("dy", "0.35em")
-    .attr("text-anchor", "middle")
+    .enter().append("foreignObject")
+    .attr("x", d => d.x0 - (CHART_CONFIG.yearNodeWidth - (d.x1 - d.x0)) / 2)
+    .attr("y", d => (d.y1 + d.y0) / 2 - 12) // Center vertically, adjust for padding
+    .attr("width", CHART_CONFIG.yearNodeWidth)
+    .attr("height", 24)
+    .append("xhtml:div")
+    .style("display", "flex")
+    .style("align-items", "center")
+    .style("justify-content", "center")
+    .style("height", "100%")
+    .style("background", "#8863EB")
+    .style("border-radius", "8px")
+    .style("padding", "2px 6px")
+    .style("font-size", `${fontSize - 6}px`)
+    .style("color", "white")
+    .style("font-weight", "normal")
+    .style("text-align", "center")
+    .style("cursor", "pointer")
+    .style("pointer-events", "all")
     .text(d => d.year)
-    .attr("font-size", `${fontSize - 2}px`)
-    .attr("fill", COLORS.text.white)
-    .attr("font-weight", "bold")
-    .attr("class", "label")
-    .style("pointer-events", "none")
+    .on("mouseenter", function(event, d) {
+      highlightYearFlows(d.index, svg, result, width)
+    })
+    .on("mouseleave", function() {
+      resetYearHighlighting(svg)
+    })
 }
 
 function createTitleLabels(svg, result, width, fontSize) {
@@ -415,19 +432,22 @@ function createTitleLabels(svg, result, width, fontSize) {
     .selectAll("text")
     .data(result.nodes.filter(d => d.x0 >= width / 2))
     .enter().append("text")
-    .attr("x", d => d.x1 + 6)
+    .attr("x", d => {
+      // Position after the wider year node
+      const adjustedX = d.x0 - (CHART_CONFIG.yearNodeWidth - (d.x1 - d.x0)) / 2
+      return adjustedX + CHART_CONFIG.yearNodeWidth + 6
+    })
     .attr("y", d => (d.y1 + d.y0 - 5) / 2 + 5)
     .attr("dy", "0.35em")
     .attr("text-anchor", "start")
     .text(d => d.title)
-    .attr("font-size", `${fontSize - 1}px`)
+    .attr("font-size", `${fontSize - 4}px`)
     .attr("fill", COLORS.text.primary)
-    .attr("font-weight", "bold")
+    .attr("font-weight", "normal")
     .attr("class", "label title-label")
     .style("cursor", "pointer")
     .style("pointer-events", "all")
     .on("click", (event, d) => {
-      console.log('TITLE CLICKED!', event, d)
       event.stopPropagation()
       
       // Remove previous selection from all nodes
@@ -441,17 +461,22 @@ function createTitleLabels(svg, result, width, fontSize) {
         year: d.year,
         description: d.description
       }
-      console.log('Selected event set to:', selectedEvent.value)
     })
-    .on("mouseenter", function() {
+    .on("mouseenter", function(event, d) {
+      // Highlight the year flows for this event
+      highlightYearFlows(d.index, svg, result, width)
+      // Also add visual feedback to the title
       d3.select(this).style("fill", "#2E8B57").style("text-decoration", "underline")
     })
-    .on("mouseleave", function() {
+    .on("mouseleave", function(event, d) {
+      // Reset highlighting
+      resetYearHighlighting(svg)
+      // Reset title styling
       d3.select(this).style("fill", COLORS.text.primary).style("text-decoration", "none")
     })
 }
 
-// ===== TOOLTIP EVENTS =====
+// ===== INTERACTION FUNCTIONS =====
 function addTooltipEvents(selection, tooltip) {
   selection
     .on("mouseenter", (event, d) => showTooltip(event, d, tooltip))
@@ -484,7 +509,6 @@ function updateTooltipPosition(event, tooltip) {
     .style("top", (event.clientY - CHART_CONFIG.tooltipOffset) + "px")
 }
 
-// ===== TITLE CREATION =====
 function createTitle(svg, width) {
   const titleFontSize = Math.max(CHART_CONFIG.fontSize.title.min, Math.min(CHART_CONFIG.fontSize.title.max, width / 50))
   svg.append("text")
@@ -496,7 +520,6 @@ function createTitle(svg, width) {
     .text(prismicData.value?.title || "Sankey Diagram")
 }
 
-// ===== HOVER INTERACTIONS =====
 function addHoverInteractions(links, nodes, labels, width) {
   const isThemeNode = d => d.x0 < width / 2
   
@@ -544,6 +567,45 @@ function highlightEventFlows(eventIndex, links, nodes, labels, width) {
     .style("opacity", CHART_CONFIG.backgroundOpacity)
   labels.titleLabels.filter(label => label.index !== eventIndex)
     .style("opacity", CHART_CONFIG.backgroundOpacity)
+}
+
+function highlightYearFlows(yearIndex, svg, result, width) {
+  // Get all elements
+  const links = svg.selectAll(".link")
+  const nodes = svg.selectAll(".node")
+  const themeLabels = svg.selectAll(".label")
+  const yearLabels = svg.selectAll("foreignObject")
+  
+  // Fade out all links
+  links.style("opacity", CHART_CONFIG.backgroundOpacity)
+  
+  // Highlight links connected to this year
+  links.filter(d => d.target.index === yearIndex)
+    .style("opacity", CHART_CONFIG.nodeOpacityHighlight)
+  
+  // Fade out theme nodes that don't connect to this year
+  const connectedThemeIndices = result.links
+    .filter(link => link.target.index === yearIndex)
+    .map(link => link.source.index)
+  
+  nodes.filter(d => d.x0 < width / 2 && !connectedThemeIndices.includes(d.index))
+    .style("opacity", CHART_CONFIG.backgroundOpacity)
+  
+  // Fade out theme labels that don't connect to this year
+  themeLabels.filter(d => d.x0 < width / 2 && !connectedThemeIndices.includes(d.index))
+    .style("opacity", CHART_CONFIG.backgroundOpacity)
+  
+  // Fade out other year labels
+  yearLabels.filter(d => d.index !== yearIndex)
+    .style("opacity", CHART_CONFIG.backgroundOpacity)
+}
+
+function resetYearHighlighting(svg) {
+  // Reset all elements to default opacity
+  svg.selectAll(".link").style("opacity", CHART_CONFIG.defaultOpacity)
+  svg.selectAll(".node").style("opacity", CHART_CONFIG.defaultOpacity)
+  svg.selectAll(".label").style("opacity", 1)
+  svg.selectAll("foreignObject").style("opacity", 1)
 }
 
 function resetHighlighting(links, nodes, labels) {
