@@ -1,16 +1,16 @@
 <template lang="pug">
-#header.px-4.py-4.flex.justify-between.items-center
-    .logo
-      h1.text-sm.font-bold.text-green-600.tracking-wide OPEN DV
+#header.flex.justify-between.items-center.border-b.border-black
+    .logo.px-4.py-2
+      h1.text-sm.font-bold OPEN DV
   
-    .flex.items-center.space-x-6
-      .flex.space-x-4
-        NuxtLink(
+    .flex.items-center
+      .flex
+        NuxtLink.border-l.border-black.px-6.py-2(
           v-for="diagram in diagrams" 
           :key="diagram.uid"
           :to="`/${diagram.uid}`"
           class=""
-          :class="{ 'bg-green-600.text-white': $route.params.uid === diagram.uid }"
+          :class="{ 'bg-purple-50 text-black font-bold': $route.params.uid === diagram.uid }"
         ) {{ diagram.data.title }}
 </template>
   
