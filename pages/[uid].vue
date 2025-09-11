@@ -1,12 +1,12 @@
 <template lang="pug">
 .flex.flex-col.md_flex-row
-  .diagram.flex.flex-col.h-3x4.md_h-screen.md_w-3x4
+  .diagram.flex.flex-col.h-screen.w-full.md_w-3x4
     .chart-container.flex-1.min-h-96.overflow-auto(ref="chartContainer")
     .loading.text-center.p-5.text-gray-600.italic(v-if="loading") Loading data...
     .error.text-center.p-5.text-red-600.bg-red-50.border.border-red-200.rounded.mx-2(v-if="error") {{ error }}
     //- .debug-info.text-center.p-2.text-gray-500.text-sm.mt-2
     //-   p Debug: {{ debugInfo }}
-  .info-container.p-2.bg-purple-50.border-l.border-black.h-screen.overflow-y-auto.w-full.md_w-1x4
+  .info-container.p-2.bg-purple-50.border-l.border-black.h-screen.overflow-y-auto.w-full.md_w-1x4.hidden.md_block
     .event-info.p-4.relative(v-if="selectedEvent")
       .close-button.absolute.top-2.right-2.cursor-pointer.hover_text-gray-700.text-xl(@click.stop="clearSelection") ×
       h3.event-title.text-lg.font-bold.leading-tight {{ selectedEvent.title }}
@@ -26,6 +26,50 @@
     .no-selection.p-4(v-else)
       h2.text-lg.font-bold.mb-4.leading-snug Welcome to the Populist Genealogies Project
       p Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis vel sapien vitae eros consectetur malesuada. Lorem ipsum dolor sit amet, consectetur adipiscing elit. In vel dignissim velit. Nullam lobortis ipsum vitae lacus efficitur varius.
+
+  //- Mobile Modal
+  .mobile-modal.fixed.bottom-0.left-0.right-0.bg-white.border-t-2.border-gray-200.shadow-lg.transform.transition-transform.duration-300.ease-in-out.z-50.md_hidden(
+    :class="{ 'translate-y-0': selectedEvent || selectedTheme, 'translate-y-full': !selectedEvent && !selectedTheme }"
+    v-if="selectedEvent || selectedTheme"
+  )
+    .modal-content.p-6.max-h-80.overflow-y-auto
+      //- Event Info for Mobile
+      .event-info-mobile(v-if="selectedEvent")
+        .modal-header.flex.justify-between.items-start.mb-3
+          .event-header
+            h3.event-title.text-lg.font-bold.leading-tight.mb-1 {{ selectedEvent.title }}
+            .event-year.text-sm.text-gray-600 {{ selectedEvent.year }}
+          button.close-button.text-gray-500.hover_text-gray-700.text-2xl.leading-none.ml-4(@click.stop="clearSelection") ×
+        
+        .event-themes.mb-4(v-if="selectedEventThemes.length")
+          .theme-pills.flex.flex-wrap.gap-2
+            .theme-pill.px-2.py-1.rounded-full.text-xs.font-medium.text-white(
+              v-for="theme in selectedEventThemes" 
+              :key="theme.name"
+              :style="{ backgroundColor: theme.color }"
+            ) {{ theme.name }}
+        
+        .event-description
+          .description-content
+            p.text-sm.leading-relaxed(v-if="!showExpandedDescription && selectedEvent.shortened_description") 
+              | {{ selectedEvent.shortened_description }}
+            p.text-sm.leading-relaxed(v-else) 
+              | {{ selectedEvent.description }}
+          
+          .more-button-container.mt-3(v-if="selectedEvent.shortened_description && selectedEvent.shortened_description !== selectedEvent.description")
+            button.more-button.text-purple-600.hover_text-purple-800.text-sm.font-medium.underline(@click="showExpandedDescription = !showExpandedDescription")
+              | {{ showExpandedDescription ? 'Less' : 'More' }}
+      
+      //- Theme Info for Mobile  
+      .theme-info-mobile(v-else-if="selectedTheme")
+        .modal-header.flex.justify-between.items-start.mb-3
+          h3.theme-title.text-lg.font-bold.leading-tight {{ selectedTheme.name }}
+          button.close-button.text-gray-500.hover_text-gray-700.text-2xl.leading-none.ml-4(@click.stop="clearSelection") ×
+        .theme-description
+          .description-content
+            //- For themes, show full description (themes don't have shortened versions yet)
+            p.text-sm.leading-relaxed {{ selectedTheme.description }}
+          //- Future: Add More/Less functionality for themes if they get shortened descriptions
 </template>
 
 <script setup>
@@ -38,20 +82,24 @@ const { client } = usePrismic()
 
 // ===== CONFIGURATION =====
 const CHART_CONFIG = {
-  margins: { top: 20, right: 300, bottom: 20, left: 20 },
+  margins: { top: 40, right: 300, bottom: 40, left: 20 }, // Increased top/bottom margins for consistency
   minWidth: 300,
   minHeight: 500,
   nodeWidth: 20,
-  nodePadding: 24,
+  nodePadding: 25, // Increased for better spacing
   cornerRadius: 10,
   themeNodeWidth: 20,
   yearNodeWidth: 40,
-  defaultOpacity: 0.5,
+  defaultOpacity: 0.4,
   linkOpacityHover: 1,
   backgroundOpacity: 0.1,
   nodeOpacityHighlight: 0.9,
   fontSize: { base: 14, min: 18, max: 24, title: { min: 14, max: 22 } },
-  tooltipOffset: 15
+  tooltipOffset: 15,
+  // New consistent spacing configuration
+  standardNodeHeight: 25,
+  maxNodeHeight: 300, // Increased to allow for themes with many connections
+  connectionHeightMultiplier: 6
 }
 
 const PRIMARY_COLOR = '#8863EB'
@@ -95,6 +143,9 @@ const selectedEvent = ref(null)
 const selectedTheme = ref(null)
 const highlightedThemeIndex = ref(null)
 const highlightedEventIndex = ref(null)
+const hoverTimeout = ref(null)
+const showExpandedDescription = ref(false)
+const isTouchDevice = ref(false)
 
 // ===== COMPUTED PROPERTIES =====
 const selectedEventThemes = computed(() => {
@@ -125,6 +176,7 @@ const clearSelection = () => {
   selectedTheme.value = null
   highlightedThemeIndex.value = null
   highlightedEventIndex.value = null
+  showExpandedDescription.value = false
   
   try {
     if (chartContainer.value) {
@@ -195,12 +247,28 @@ let resizeObserver = null
 
 onMounted(async () => {
   debugInfo.value = 'Component mounted, starting Prismic data load...'
+  
+  // Detect touch device
+  isTouchDevice.value = (('ontouchstart' in window) || 
+                        (navigator.maxTouchPoints > 0) || 
+                        (navigator.msMaxTouchPoints > 0) ||
+                        window.matchMedia("(hover: none)").matches)
+  
   await loadPrismicData()
   setupResizeObserver()
 })
 
 onUnmounted(() => {
   if (resizeObserver) resizeObserver.disconnect()
+  if (hoverTimeout.value) {
+    clearTimeout(hoverTimeout.value)
+    hoverTimeout.value = null
+  }
+  // Clean up any remaining tooltips and body event listeners (only if tooltips were created)
+  if (!isTouchDevice.value) {
+    d3.selectAll(".sankey-tooltip").remove()
+    d3.select("body").on("mouseleave.tooltip", null)
+  }
 })
 
 // ===== DATA LOADING =====
@@ -308,7 +376,8 @@ function transformCSVToSankey(csvData, themes) {
       year: parseInt(row.Year || row.year),
       title: row.Title || row.title,
       shortened_title: row.Shortened_Title || row.shortened_title || row.Title || row.title,
-      description: row.Description || row.description
+      description: row.Description || row.description,
+      shortened_description: row.Shortened_Description || row.shortened_description || row.Description || row.description
     }))
   ]
   
@@ -328,6 +397,7 @@ function transformCSVToSankey(csvData, themes) {
           value: 2,
           description: row.Title || row.title,
           fullDescription: row.Description || row.description,
+          shortDescription: row.Shortened_Description || row.shortened_description || row.Description || row.description,
           year: parseInt(row.Year || row.year),
           theme: theme
         })
@@ -357,14 +427,20 @@ function createSankeyDiagram(data) {
     return
   }
   
-  try {
-    const containerRect = chartContainer.value.getBoundingClientRect()
-    const width = Math.max(containerRect.width - CHART_CONFIG.margins.left - CHART_CONFIG.margins.right, CHART_CONFIG.minWidth)
-    const height = Math.max(containerRect.height - CHART_CONFIG.margins.top - CHART_CONFIG.margins.bottom, CHART_CONFIG.minHeight)
+    try {
+      const containerRect = chartContainer.value.getBoundingClientRect()
+      
+      // Use smaller margins on mobile for more diagram space
+      const margins = window.innerWidth <= 768
+        ? { top: 20, right: 180, bottom: 20, left: 10 }
+        : CHART_CONFIG.margins
+      
+      const width = Math.max(containerRect.width - margins.left - margins.right, CHART_CONFIG.minWidth)
+      const height = Math.max(containerRect.height - margins.top - margins.bottom, CHART_CONFIG.minHeight)
 
-    d3.select(chartContainer.value).selectAll("*").remove()
+      d3.select(chartContainer.value).selectAll("*").remove()
 
-    const svg = createSVGContainer(chartContainer.value, width, height, CHART_CONFIG.margins)
+      const svg = createSVGContainer(chartContainer.value, width, height, margins)
     const result = createSankeyLayout(data, width, height)
     const tooltip = createTooltip()
 
@@ -407,19 +483,218 @@ function createSVGContainer(container, width, height, margin) {
 }
 
 function createSankeyLayout(data, width, height) {
-  return sankey()
+  // Calculate consistent node padding based on available space and number of nodes
+  const themeCount = data.nodes.filter(n => n.type === 'theme').length
+  const eventCount = data.nodes.filter(n => n.type === 'event').length
+  const maxNodes = Math.max(themeCount, eventCount)
+  
+  // Use a fixed minimum padding that ensures consistent spacing regardless of data size
+  const minPadding = 25 // Minimum space between nodes
+  const availableHeight = height - 40 // Leave some margin at top/bottom
+  const calculatedPadding = Math.max(minPadding, (availableHeight - (maxNodes * 20)) / (maxNodes - 1))
+  const consistentPadding = Math.min(calculatedPadding, 50) // Cap maximum padding
+  
+  const sankeyLayout = sankey()
     .nodeWidth(CHART_CONFIG.nodeWidth)
-    .nodePadding(CHART_CONFIG.nodePadding)
+    .nodePadding(consistentPadding)
     .nodeSort((a, b) => {
       if (a.x_position !== b.x_position) return a.x_position - b.x_position
       if (a.x_position === 1) return a.year - b.year
       return 0
     })
-    .extent([[0, 0], [width, height]])(data)
+    .extent([[0, 0], [width, height]])
+
+  const result = sankeyLayout(data)
+  
+  // Post-process to ensure consistent vertical positioning
+  normalizeNodePositions(result, height, themeCount, eventCount)
+  
+  return result
+}
+
+function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
+  const margin = CHART_CONFIG.margins.top // Use consistent margins from config
+  const availableHeight = height - (2 * margin)
+  
+  // Separate theme and event nodes
+  const themeNodes = sankeyResult.nodes.filter(n => n.type === 'theme')
+  const eventNodes = sankeyResult.nodes.filter(n => n.type === 'event')
+  
+  // First, calculate proper node heights based on link spacing requirements
+  calculateOptimalNodeHeights(sankeyResult, themeNodes, eventNodes)
+  
+  // Then distribute theme nodes evenly in available vertical space
+  if (themeNodes.length > 1) {
+    const themeSpacing = availableHeight / (themeNodes.length - 1)
+    themeNodes.forEach((node, index) => {
+      const newY = margin + (index * themeSpacing)
+      const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
+      
+      // Debug logging to see if heights are being calculated correctly
+      console.log(`Theme node ${node.name}: connections=${node.connectionCount}, height=${nodeHeight}`)
+      
+      node.y0 = newY - (nodeHeight / 2) // Center around the calculated position
+      node.y1 = newY + (nodeHeight / 2)
+    })
+  } else if (themeNodes.length === 1) {
+    // Center single theme node
+    const nodeHeight = themeNodes[0].calculatedHeight || CHART_CONFIG.standardNodeHeight
+    
+    // Debug logging to see if heights are being calculated correctly
+    console.log(`Single theme node ${themeNodes[0].name}: connections=${themeNodes[0].connectionCount}, height=${nodeHeight}`)
+    
+    themeNodes[0].y0 = (height - nodeHeight) / 2
+    themeNodes[0].y1 = themeNodes[0].y0 + nodeHeight
+  }
+  
+  // Distribute event nodes evenly in available vertical space
+  if (eventNodes.length > 1) {
+    const eventSpacing = availableHeight / (eventNodes.length - 1)
+    eventNodes.forEach((node, index) => {
+      const newY = margin + (index * eventSpacing)
+      const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
+      node.y0 = newY - (nodeHeight / 2) // Center around the calculated position  
+      node.y1 = newY + (nodeHeight / 2)
+    })
+  } else if (eventNodes.length === 1) {
+    // Center single event node
+    const nodeHeight = eventNodes[0].calculatedHeight || CHART_CONFIG.standardNodeHeight
+    eventNodes[0].y0 = (height - nodeHeight) / 2
+    eventNodes[0].y1 = eventNodes[0].y0 + nodeHeight
+  }
+  
+  // Update link positions to match new node positions with consistent spacing
+  normalizeLinksForConsistentSpacing(sankeyResult, themeNodes, eventNodes)
+}
+
+function calculateOptimalNodeHeights(sankeyResult, themeNodes, eventNodes) {
+  const linkHeight = 8 // Height of each link/connection
+  const linkPadding = 2 // Reduced padding between links for tighter spacing
+  const minNodePadding = 10 // Minimum padding at top/bottom of node
+  
+  // Calculate theme node heights based on number of connections
+  themeNodes.forEach(node => {
+    const connectionCount = sankeyResult.links.filter(link => link.source.id === node.id).length
+    node.connectionCount = connectionCount
+    
+    if (connectionCount === 0) {
+      node.calculatedHeight = CHART_CONFIG.standardNodeHeight
+    } else {
+      // Height should match exactly the space needed for links with minimal padding
+      const linksHeight = connectionCount * linkHeight
+      const gapsHeight = Math.max(0, connectionCount - 1) * linkPadding
+      // Reduce padding to just cover the link stack height
+      const topPadding = 2 // Minimal top padding
+      const bottomPadding = 2 // Minimal bottom padding
+      node.calculatedHeight = topPadding + linksHeight + gapsHeight + bottomPadding
+    }
+    
+    // Debug logging before capping
+    console.log(`Theme node ${node.name}: connections=${connectionCount}, calculated height=${node.calculatedHeight}`)
+    
+    // Cap the height to maximum
+    node.calculatedHeight = Math.min(node.calculatedHeight, CHART_CONFIG.maxNodeHeight)
+    
+    // Debug logging after capping
+    console.log(`Theme node ${node.name}: final height=${node.calculatedHeight} (max=${CHART_CONFIG.maxNodeHeight})`)
+  })
+  
+  // Calculate event node heights based on number of connections
+  eventNodes.forEach(node => {
+    const connectionCount = sankeyResult.links.filter(link => link.target.id === node.id).length
+    node.connectionCount = connectionCount
+    
+    if (connectionCount === 0) {
+      node.calculatedHeight = CHART_CONFIG.standardNodeHeight
+    } else {
+      // Height = top padding + (links * linkHeight) + (gaps * linkPadding) + bottom padding
+      const linksHeight = connectionCount * linkHeight
+      const gapsHeight = Math.max(0, connectionCount - 1) * linkPadding
+      node.calculatedHeight = (2 * minNodePadding) + linksHeight + gapsHeight
+    }
+    
+    // Cap the height to maximum
+    node.calculatedHeight = Math.min(node.calculatedHeight, CHART_CONFIG.maxNodeHeight)
+  })
+}
+
+function normalizeLinksForConsistentSpacing(sankeyResult, themeNodes, eventNodes) {
+  const linkHeight = 8 // Height of each link (must match stroke-width)
+  const linkPadding = 2 // Reduced padding between links for tighter spacing
+  const minNodePadding = 2 // Reduced padding to match node height calculation
+  
+  // Group links by source (theme) node
+  const linksByTheme = new Map()
+  sankeyResult.links.forEach(link => {
+    const themeId = link.source.id
+    if (!linksByTheme.has(themeId)) {
+      linksByTheme.set(themeId, [])
+    }
+    linksByTheme.get(themeId).push(link)
+  })
+  
+  // Position links with consistent spacing within each theme node
+  themeNodes.forEach(themeNode => {
+    const themeLinks = linksByTheme.get(themeNode.id) || []
+    
+    if (themeLinks.length === 0) return
+    
+    // Sort links by target year to maintain chronological order
+    themeLinks.sort((a, b) => {
+      if (a.target.year && b.target.year) {
+        return a.target.year - b.target.year
+      }
+      return a.target.id - b.target.id
+    })
+    
+    themeLinks.forEach((link, index) => {
+      // Stack links with consistent spacing from top of node
+      const linkY = themeNode.y0 + minNodePadding + (index * (linkHeight + linkPadding)) + (linkHeight / 2)
+      link.y0 = linkY
+      
+      // Set consistent link width regardless of dataset
+      link.width = linkHeight // Use the same value for visual consistency
+      
+      // Debug logging
+      console.log(`Link ${index} for theme ${themeNode.name}: y=${linkY}, linkHeight=${linkHeight}`)
+    })
+  })
+  
+  // Group links by target (event) node and distribute them evenly
+  const linksByEvent = new Map()
+  sankeyResult.links.forEach(link => {
+    const eventId = link.target.id
+    if (!linksByEvent.has(eventId)) {
+      linksByEvent.set(eventId, [])
+    }
+    linksByEvent.get(eventId).push(link)
+  })
+  
+  eventNodes.forEach(eventNode => {
+    const eventLinks = linksByEvent.get(eventNode.id) || []
+    
+    if (eventLinks.length === 0) return
+    
+    // All links should connect to the center of the event node where the year pill is positioned
+    const yearPillCenterY = (eventNode.y1 + eventNode.y0) / 2
+    
+    eventLinks.forEach((link, index) => {
+      // Connect all links to the center where the year pill is located
+      link.y1 = yearPillCenterY
+    })
+  })
 }
 
 function createTooltip() {
-  return d3.select("body").append("div")
+  // Don't create tooltips on touch devices
+  if (isTouchDevice.value) {
+    return null
+  }
+  
+  // Remove any existing tooltips first to prevent duplicates/stuck tooltips
+  d3.selectAll(".sankey-tooltip").remove()
+  
+  const tooltip = d3.select("body").append("div")
     .attr("class", "sankey-tooltip")
     .style("position", "fixed")
     .style("visibility", "hidden")
@@ -435,6 +710,13 @@ function createTooltip() {
     .style("max-width", "400px")
     .style("word-wrap", "break-word")
     .style("white-space", "normal")
+  
+  // Add a global body mouseleave to ensure tooltip is hidden when cursor leaves the page
+  d3.select("body").on("mouseleave.tooltip", () => {
+    tooltip.style("visibility", "hidden")
+  })
+  
+  return tooltip
 }
 
 function createChartElements(svg, result, width, tooltip) {
@@ -474,7 +756,7 @@ function createLinks(svg, result, width, tooltip) {
     .enter().append("path")
     .attr("d", sankeyLinkHorizontal())
     .attr("stroke", d => COLORS.custom[d.source.index % COLORS.custom.length])
-    .attr("stroke-width", "8")
+    .attr("stroke-width", d => d.width || 8) // Use consistent width from normalization
     .attr("fill", "none")
     .attr("opacity", CHART_CONFIG.defaultOpacity)
     .attr("class", "link")
@@ -484,7 +766,7 @@ function createLinks(svg, result, width, tooltip) {
     .on("click", (event) => {
       event.stopPropagation()
     })
-    .call(addTooltipEvents, tooltip)
+    .call(addTooltipEvents, tooltip, svg, width)
 }
 
 function createNodes(svg, result, width) {
@@ -496,8 +778,11 @@ function createNodes(svg, result, width) {
       const x = d.x0
       const y = d.y0
       const w = CHART_CONFIG.themeNodeWidth
-      const h = Math.max(20, d.y1 - d.y0)
+      const h = d.y1 - d.y0 // Use the calculated height directly
       const r = CHART_CONFIG.cornerRadius
+      
+      // Debug logging to verify node rendering
+      console.log(`Rendering theme node ${d.name}: height=${h}, y0=${y}, y1=${d.y1}`)
       
       return `M ${x + r} ${y} 
               L ${x + w} ${y} 
@@ -535,7 +820,7 @@ function createLabels(svg, result, width) {
 }
 
 function createThemeLabels(svg, result, width, fontSize) {
-  return svg.append("g")
+  const labels = svg.append("g")
     .selectAll("text")
     .data(result.nodes.filter(d => d.x0 < width / 2))
     .enter().append("text")
@@ -559,32 +844,39 @@ function createThemeLabels(svg, result, width, fontSize) {
         description: d.themeDescription
       }
     })
-    .on("mouseenter", (event, d) => {
-      if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
-        const svg = d3.select(event.currentTarget.closest('svg'))
-        const links = svg.selectAll(".link")
-        const nodes = svg.selectAll(".node")
-        const labels = svg.selectAll(".label")
-        const yearLabels = svg.selectAll("foreignObject")
-        
-        highlightThemeFlows(d.index, links, nodes, { themeLabels: labels, yearLabels, titleLabels: svg.selectAll(".title-label") }, width)
-      }
-    })
-    .on("mouseleave", () => {
-      if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
-        const svg = d3.select(event.currentTarget.closest('svg'))
-        const links = svg.selectAll(".link")
-        const nodes = svg.selectAll(".node")
-        const labels = svg.selectAll(".label")
-        const yearLabels = svg.selectAll("foreignObject")
-        
-        resetHighlighting(links, nodes, { themeLabels: labels, yearLabels, titleLabels: svg.selectAll(".title-label") })
-      }
-    })
+  
+  // Only add hover events on non-touch devices
+  if (!isTouchDevice.value) {
+    labels
+      .on("mouseenter", (event, d) => {
+        if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
+          const svg = d3.select(event.currentTarget.closest('svg'))
+          const links = svg.selectAll(".link")
+          const nodes = svg.selectAll(".node")
+          const labels = svg.selectAll(".label")
+          const yearLabels = svg.selectAll("foreignObject")
+          
+          highlightThemeFlows(d.index, links, nodes, { themeLabels: labels, yearLabels, titleLabels: svg.selectAll(".title-label") }, width)
+        }
+      })
+      .on("mouseleave", () => {
+        if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
+          const svg = d3.select(event.currentTarget.closest('svg'))
+          const links = svg.selectAll(".link")
+          const nodes = svg.selectAll(".node")
+          const labels = svg.selectAll(".label")
+          const yearLabels = svg.selectAll("foreignObject")
+          
+          resetHighlighting(links, nodes, { themeLabels: labels, yearLabels, titleLabels: svg.selectAll(".title-label") })
+        }
+      })
+  }
+  
+  return labels
 }
 
 function createYearLabels(svg, result, width, fontSize) {
-  return svg.append("g")
+  const yearLabels = svg.append("g")
     .selectAll("foreignObject")
     .data(result.nodes.filter(d => d.x0 >= width / 2))
     .enter().append("foreignObject")
@@ -592,7 +884,8 @@ function createYearLabels(svg, result, width, fontSize) {
     .attr("y", d => (d.y1 + d.y0) / 2 - 12)
     .attr("width", CHART_CONFIG.yearNodeWidth)
     .attr("height", 24)
-    .append("xhtml:div")
+  
+  const yearDivs = yearLabels.append("xhtml:div")
     .style("display", "flex")
     .style("align-items", "center")
     .style("justify-content", "center")
@@ -607,20 +900,27 @@ function createYearLabels(svg, result, width, fontSize) {
     .style("cursor", "pointer")
     .style("pointer-events", "all")
     .text(d => d.year)
-    .on("mouseenter", function(event, d) {
-      if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
-        highlightYearFlows(d.index, svg, result, width)
-      }
-    })
-    .on("mouseleave", function() {
-      if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
-        resetYearHighlighting(svg)
-      }
-    })
+  
+  // Only add hover events on non-touch devices
+  if (!isTouchDevice.value) {
+    yearDivs
+      .on("mouseenter", function(event, d) {
+        if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
+          highlightYearFlows(d.index, svg, result, width)
+        }
+      })
+      .on("mouseleave", function() {
+        if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
+          resetYearHighlighting(svg)
+        }
+      })
+  }
+  
+  return yearLabels
 }
 
 function createTitleLabels(svg, result, width, fontSize) {
-  return svg.append("g")
+  const labels = svg.append("g")
     .selectAll("text")
     .data(result.nodes.filter(d => d.x0 >= width / 2))
     .enter().append("text")
@@ -631,7 +931,15 @@ function createTitleLabels(svg, result, width, fontSize) {
     .attr("y", d => (d.y1 + d.y0 - 5) / 2 + 5)
     .attr("dy", "0.35em")
     .attr("text-anchor", "start")
-    .text(d => d.shortened_title || d.title)
+    .text(d => {
+      const title = d.shortened_title || d.title
+      // Truncate to 20 characters on mobile/touch devices only
+      // Use window.innerWidth as a more reliable mobile detection
+      if (window.innerWidth <= 768 && title.length > 20) {
+        return title.substring(0, 20) + '...'
+      }
+      return title
+    })
     .attr("font-size", `${fontSize - 4}px`)
     .attr("fill", COLORS.text.primary)
     .attr("font-weight", "normal")
@@ -645,44 +953,95 @@ function createTitleLabels(svg, result, width, fontSize) {
       selectedEvent.value = {
         title: d.title,
         year: d.year,
-        description: d.description
+        description: d.description,
+        shortened_description: d.shortened_description
       }
     })
-    .on("mouseenter", (event, d) => {
-      if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
-        const links = svg.selectAll(".link")
-        const nodes = svg.selectAll(".node")
-        const labels = svg.selectAll(".label")
-        const yearLabels = svg.selectAll("foreignObject")
-        
-        highlightEventFlows(d.index, links, nodes, { themeLabels: labels, yearLabels, titleLabels: svg.selectAll(".title-label") }, width)
-      }
-    })
-    .on("mouseleave", () => {
-      if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
-        const links = svg.selectAll(".link")
-        const nodes = svg.selectAll(".node")
-        const labels = svg.selectAll(".label")
-        const yearLabels = svg.selectAll("foreignObject")
-        
-        resetHighlighting(links, nodes, { themeLabels: labels, yearLabels, titleLabels: svg.selectAll(".title-label") })
-      }
-    })
+  
+  // Only add hover events on non-touch devices
+  if (!isTouchDevice.value) {
+    labels
+      .on("mouseenter", (event, d) => {
+        if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
+          const links = svg.selectAll(".link")
+          const nodes = svg.selectAll(".node")
+          const labels = svg.selectAll(".label")
+          const yearLabels = svg.selectAll("foreignObject")
+          
+          highlightEventFlows(d.index, links, nodes, { themeLabels: labels, yearLabels, titleLabels: svg.selectAll(".title-label") }, width)
+        }
+      })
+      .on("mouseleave", () => {
+        if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
+          const links = svg.selectAll(".link")
+          const nodes = svg.selectAll(".node")
+          const labels = svg.selectAll(".label")
+          const yearLabels = svg.selectAll("foreignObject")
+          
+          resetHighlighting(links, nodes, { themeLabels: labels, yearLabels, titleLabels: svg.selectAll(".title-label") })
+        }
+      })
+  }
+  
+  return labels
 }
 
 // ===== INTERACTIONS =====
-function addTooltipEvents(selection, tooltip) {
+function addTooltipEvents(selection, tooltip, svg, width) {
+  // Skip hover events on touch devices or if tooltip is null
+  if (isTouchDevice.value || !tooltip) {
+    return
+  }
+  
   selection
     .on("mouseenter", (event, d) => {
       if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
+        // Clear any existing timeout
+        if (hoverTimeout.value) {
+          clearTimeout(hoverTimeout.value)
+          hoverTimeout.value = null
+        }
+        
         showTooltip(event, d, tooltip)
+        
+        // Add a small delay before highlighting to prevent jitter
+        hoverTimeout.value = setTimeout(() => {
+          // Highlight the connected theme when hovering over a link
+          const links = svg.selectAll(".link")
+          const nodes = svg.selectAll(".node")
+          const labels = svg.selectAll(".label")
+          const yearLabels = svg.selectAll("foreignObject")
+          const titleLabels = svg.selectAll(".title-label")
+          
+          highlightThemeFlows(d.source.index, links, nodes, { themeLabels: labels, yearLabels, titleLabels }, width)
+        }, 600) // 600ms delay to prevent jitter
       }
     })
     .on("mousemove", (event) => updateTooltipPosition(event, tooltip))
     .on("mouseleave", function() {
       if (highlightedThemeIndex.value === null && highlightedEventIndex.value === null) {
+        // Clear any pending highlight timeout
+        if (hoverTimeout.value) {
+          clearTimeout(hoverTimeout.value)
+          hoverTimeout.value = null
+        }
+        
         d3.select(this).style("opacity", CHART_CONFIG.defaultOpacity)
         tooltip.style("visibility", "hidden")
+        
+        // Add a small delay before resetting to allow smooth transitions between links
+        setTimeout(() => {
+          // Only reset if we're not hovering over another element
+          if (!hoverTimeout.value) {
+            const links = svg.selectAll(".link")
+            const nodes = svg.selectAll(".node")
+            const labels = svg.selectAll(".label")
+            const yearLabels = svg.selectAll("foreignObject")
+            const titleLabels = svg.selectAll(".title-label")
+            
+            resetHighlighting(links, nodes, { themeLabels: labels, yearLabels, titleLabels })
+          }
+        }, 50) // Shorter delay for reset to feel responsive
       }
     })
 }
@@ -697,7 +1056,7 @@ function showTooltip(event, d, tooltip) {
       <div class="text-sm">
         <div class="font-bold leading-tight">${d.description}</div>
         <div class="mb-2">${d.year}</div>
-        <div class="word-wrap-break-word leading-snug">${d.fullDescription}</div>
+        <div class="word-wrap-break-word leading-snug">${d.shortDescription}</div>
       </div>
     `)
     .style("left", (event.clientX + CHART_CONFIG.tooltipOffset) + "px")
@@ -712,6 +1071,11 @@ function updateTooltipPosition(event, tooltip) {
 
 
 function addHoverInteractions(links, nodes, labels, width) {
+  // Skip hover events on touch devices
+  if (isTouchDevice.value) {
+    return
+  }
+  
   const isThemeNode = d => d.x0 < width / 2
   
   nodes.filter(isThemeNode)
@@ -843,11 +1207,7 @@ function resetHighlighting(links, nodes, labels) {
 </script>
 
 <style scoped>
-.h-3x4 {
-  @media (max-width: 767px) {
-    height: 75vh;
-  }
-}
+/* Removed conflicting height rule - now using full screen height */
 
 :deep(.node) {
   opacity: 1 !important;
@@ -859,7 +1219,7 @@ function resetHighlighting(links, nodes, labels) {
     padding: 10px; 
   }
   .chart-container { 
-    min-height: 400px; 
+    min-height: 70vh; /* Much larger minimum height for mobile */
   }
 }
 
@@ -868,7 +1228,65 @@ function resetHighlighting(links, nodes, labels) {
     padding: 5px; 
   }
   .chart-container { 
-    min-height: 350px; 
+    min-height: 65vh; /* Larger minimum height for small mobile screens */
+  }
+}
+
+/* Mobile Modal Styles */
+.mobile-modal {
+  backdrop-filter: blur(2px);
+}
+
+.mobile-modal .modal-content {
+  border-radius: 1rem 1rem 0 0;
+}
+
+@media (max-width: 768px) {
+  .diagram {
+    height: calc(100vh - 80px); /* Leave minimal space for potential modal but keep diagram large */
+  }
+  
+  .mobile-modal {
+    max-height: 50vh;
+  }
+  
+  .mobile-modal .modal-content {
+    max-height: calc(50vh - 3rem);
+  }
+  
+  /* Increase spacing in mobile modal */
+  .mobile-modal .event-header {
+    margin-bottom: 0.75rem;
+  }
+  
+  .mobile-modal .event-themes {
+    margin-bottom: 1.25rem;
+  }
+  
+  .mobile-modal .theme-pills {
+    gap: 0.75rem;
+  }
+  
+  .mobile-modal .description-content {
+    margin-bottom: 0.5rem;
+  }
+  
+  .mobile-modal .more-button-container {
+    margin-top: 1rem;
+  }
+  
+  .mobile-modal .theme-description {
+    margin-top: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-modal {
+    max-height: 60vh;
+  }
+  
+  .mobile-modal .modal-content {
+    max-height: calc(60vh - 3rem);
   }
 }
 </style>

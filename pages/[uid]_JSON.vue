@@ -36,11 +36,11 @@ const { client } = usePrismic()
 
 // ===== CONFIGURATION & CONSTANTS =====
 const CHART_CONFIG = {
-  margins: { top: 20, right: 300, bottom: 20, left: 20 },
+  margins: { top: 40, right: 300, bottom: 40, left: 20 }, // Increased top/bottom margins for consistency
   minWidth: 300,
   minHeight: 500,
   nodeWidth: 20,
-  nodePadding: 24,
+  nodePadding: 25, // Increased for better spacing
   cornerRadius: 10,
   // Node sizing for different types
   themeNodeWidth: 20,       // Theme nodes (left side)
@@ -52,7 +52,11 @@ const CHART_CONFIG = {
   nodeOpacityHighlight: 0.9, // 90% opacity when highlighted
   // Typography settings
   fontSize: { base: 14, min: 18, max: 24, title: { min: 14, max: 22 } },
-  tooltipOffset: 15
+  tooltipOffset: 15,
+  // New consistent spacing configuration
+  standardNodeHeight: 25,
+  maxNodeHeight: 300, // Increased to allow for themes with many connections
+  connectionHeightMultiplier: 6
 }
 
 const PRIMARY_COLOR = '#8863EB'
@@ -350,15 +354,206 @@ function createSVGContainer(container, width, height, margin) {
 }
 
 function createSankeyLayout(data, width, height) {
-  return sankey()
+  // Calculate consistent node padding based on available space and number of nodes
+  const themeCount = data.nodes.filter(n => n.type === 'theme').length
+  const eventCount = data.nodes.filter(n => n.type === 'event').length
+  const maxNodes = Math.max(themeCount, eventCount)
+  
+  // Use a fixed minimum padding that ensures consistent spacing regardless of data size
+  const minPadding = 25 // Minimum space between nodes
+  const availableHeight = height - 40 // Leave some margin at top/bottom
+  const calculatedPadding = Math.max(minPadding, (availableHeight - (maxNodes * 20)) / (maxNodes - 1))
+  const consistentPadding = Math.min(calculatedPadding, 50) // Cap maximum padding
+  
+  const sankeyLayout = sankey()
     .nodeWidth(CHART_CONFIG.nodeWidth)
-    .nodePadding(CHART_CONFIG.nodePadding)
+    .nodePadding(consistentPadding)
     .nodeSort((a, b) => {
       if (a.x_position !== b.x_position) return a.x_position - b.x_position
       if (a.x_position === 1) return a.year - b.year
       return 0
     })
-    .extent([[0, 0], [width, height]])(data)
+    .extent([[0, 0], [width, height]])
+
+  const result = sankeyLayout(data)
+  
+  // Post-process to ensure consistent vertical positioning
+  normalizeNodePositions(result, height, themeCount, eventCount)
+  
+  return result
+}
+
+function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
+  const margin = CHART_CONFIG.margins.top // Use consistent margins from config
+  const availableHeight = height - (2 * margin)
+  
+  // Separate theme and event nodes
+  const themeNodes = sankeyResult.nodes.filter(n => n.type === 'theme')
+  const eventNodes = sankeyResult.nodes.filter(n => n.type === 'event')
+  
+  // First, calculate proper node heights based on link spacing requirements
+  calculateOptimalNodeHeights(sankeyResult, themeNodes, eventNodes)
+  
+  // Then distribute theme nodes evenly in available vertical space
+  if (themeNodes.length > 1) {
+    const themeSpacing = availableHeight / (themeNodes.length - 1)
+    themeNodes.forEach((node, index) => {
+      const newY = margin + (index * themeSpacing)
+      const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
+      
+      // Debug logging to see if heights are being calculated correctly
+      console.log(`Theme node ${node.name}: connections=${node.connectionCount}, height=${nodeHeight}`)
+      
+      node.y0 = newY - (nodeHeight / 2) // Center around the calculated position
+      node.y1 = newY + (nodeHeight / 2)
+    })
+  } else if (themeNodes.length === 1) {
+    // Center single theme node
+    const nodeHeight = themeNodes[0].calculatedHeight || CHART_CONFIG.standardNodeHeight
+    
+    // Debug logging to see if heights are being calculated correctly
+    console.log(`Single theme node ${themeNodes[0].name}: connections=${themeNodes[0].connectionCount}, height=${nodeHeight}`)
+    
+    themeNodes[0].y0 = (height - nodeHeight) / 2
+    themeNodes[0].y1 = themeNodes[0].y0 + nodeHeight
+  }
+  
+  // Distribute event nodes evenly in available vertical space
+  if (eventNodes.length > 1) {
+    const eventSpacing = availableHeight / (eventNodes.length - 1)
+    eventNodes.forEach((node, index) => {
+      const newY = margin + (index * eventSpacing)
+      const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
+      node.y0 = newY - (nodeHeight / 2) // Center around the calculated position  
+      node.y1 = newY + (nodeHeight / 2)
+    })
+  } else if (eventNodes.length === 1) {
+    // Center single event node
+    const nodeHeight = eventNodes[0].calculatedHeight || CHART_CONFIG.standardNodeHeight
+    eventNodes[0].y0 = (height - nodeHeight) / 2
+    eventNodes[0].y1 = eventNodes[0].y0 + nodeHeight
+  }
+  
+  // Update link positions to match new node positions with consistent spacing
+  normalizeLinksForConsistentSpacing(sankeyResult, themeNodes, eventNodes)
+}
+
+function calculateOptimalNodeHeights(sankeyResult, themeNodes, eventNodes) {
+  const linkHeight = 8 // Height of each link/connection
+  const linkPadding = 2 // Reduced padding between links for tighter spacing
+  const minNodePadding = 10 // Minimum padding at top/bottom of node
+  
+  // Calculate theme node heights based on number of connections
+  themeNodes.forEach(node => {
+    const connectionCount = sankeyResult.links.filter(link => link.source.id === node.id).length
+    node.connectionCount = connectionCount
+    
+    if (connectionCount === 0) {
+      node.calculatedHeight = CHART_CONFIG.standardNodeHeight
+    } else {
+      // Height should match exactly the space needed for links with minimal padding
+      const linksHeight = connectionCount * linkHeight
+      const gapsHeight = Math.max(0, connectionCount - 1) * linkPadding
+      // Reduce padding to just cover the link stack height
+      const topPadding = 2 // Minimal top padding
+      const bottomPadding = 2 // Minimal bottom padding
+      node.calculatedHeight = topPadding + linksHeight + gapsHeight + bottomPadding
+    }
+    
+    // Debug logging before capping
+    console.log(`Theme node ${node.name}: connections=${connectionCount}, calculated height=${node.calculatedHeight}`)
+    
+    // Cap the height to maximum
+    node.calculatedHeight = Math.min(node.calculatedHeight, CHART_CONFIG.maxNodeHeight)
+    
+    // Debug logging after capping
+    console.log(`Theme node ${node.name}: final height=${node.calculatedHeight} (max=${CHART_CONFIG.maxNodeHeight})`)
+  })
+  
+  // Calculate event node heights based on number of connections
+  eventNodes.forEach(node => {
+    const connectionCount = sankeyResult.links.filter(link => link.target.id === node.id).length
+    node.connectionCount = connectionCount
+    
+    if (connectionCount === 0) {
+      node.calculatedHeight = CHART_CONFIG.standardNodeHeight
+    } else {
+      // Height = top padding + (links * linkHeight) + (gaps * linkPadding) + bottom padding
+      const linksHeight = connectionCount * linkHeight
+      const gapsHeight = Math.max(0, connectionCount - 1) * linkPadding
+      node.calculatedHeight = (2 * minNodePadding) + linksHeight + gapsHeight
+    }
+    
+    // Cap the height to maximum
+    node.calculatedHeight = Math.min(node.calculatedHeight, CHART_CONFIG.maxNodeHeight)
+  })
+}
+
+function normalizeLinksForConsistentSpacing(sankeyResult, themeNodes, eventNodes) {
+  const linkHeight = 8 // Height of each link (must match stroke-width)
+  const linkPadding = 2 // Reduced padding between links for tighter spacing
+  const minNodePadding = 2 // Reduced padding to match node height calculation
+  
+  // Group links by source (theme) node
+  const linksByTheme = new Map()
+  sankeyResult.links.forEach(link => {
+    const themeId = link.source.id
+    if (!linksByTheme.has(themeId)) {
+      linksByTheme.set(themeId, [])
+    }
+    linksByTheme.get(themeId).push(link)
+  })
+  
+  // Position links with consistent spacing within each theme node
+  themeNodes.forEach(themeNode => {
+    const themeLinks = linksByTheme.get(themeNode.id) || []
+    
+    if (themeLinks.length === 0) return
+    
+    // Sort links by target year to maintain chronological order
+    themeLinks.sort((a, b) => {
+      if (a.target.year && b.target.year) {
+        return a.target.year - b.target.year
+      }
+      return a.target.id - b.target.id
+    })
+    
+    themeLinks.forEach((link, index) => {
+      // Stack links with consistent spacing from top of node
+      const linkY = themeNode.y0 + minNodePadding + (index * (linkHeight + linkPadding)) + (linkHeight / 2)
+      link.y0 = linkY
+      
+      // Set consistent link width regardless of dataset
+      link.width = linkHeight // Use the same value for visual consistency
+      
+      // Debug logging
+      console.log(`Link ${index} for theme ${themeNode.name}: y=${linkY}, linkHeight=${linkHeight}`)
+    })
+  })
+  
+  // Group links by target (event) node and distribute them evenly
+  const linksByEvent = new Map()
+  sankeyResult.links.forEach(link => {
+    const eventId = link.target.id
+    if (!linksByEvent.has(eventId)) {
+      linksByEvent.set(eventId, [])
+    }
+    linksByEvent.get(eventId).push(link)
+  })
+  
+  eventNodes.forEach(eventNode => {
+    const eventLinks = linksByEvent.get(eventNode.id) || []
+    
+    if (eventLinks.length === 0) return
+    
+    // All links should connect to the center of the event node where the year pill is positioned
+    const yearPillCenterY = (eventNode.y1 + eventNode.y0) / 2
+    
+    eventLinks.forEach((link, index) => {
+      // Connect all links to the center where the year pill is located
+      link.y1 = yearPillCenterY
+    })
+  })
 }
 
 function createTooltip() {
@@ -410,7 +605,7 @@ function createLinks(svg, result, width, tooltip) {
     .enter().append("path")
     .attr("d", sankeyLinkHorizontal())
     .attr("stroke", d => COLORS.custom[d.source.index % COLORS.custom.length])
-    .attr("stroke-width", "8")
+    .attr("stroke-width", d => d.width || 8) // Use consistent width from normalization
     .attr("fill", "none")
     .attr("opacity", CHART_CONFIG.defaultOpacity)
     .attr("class", "link")
@@ -430,8 +625,11 @@ function createNodes(svg, result, width) {
       const x = d.x0
       const y = d.y0
       const w = CHART_CONFIG.themeNodeWidth
-      const h = Math.max(20, d.y1 - d.y0)
+      const h = d.y1 - d.y0 // Use the calculated height directly
       const r = CHART_CONFIG.cornerRadius
+      
+      // Debug logging to verify node rendering
+      console.log(`Rendering theme node ${d.name}: height=${h}, y0=${y}, y1=${d.y1}`)
       
       // Theme nodes - left-only rounded corners
       return `M ${x + r} ${y} 
