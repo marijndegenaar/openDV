@@ -513,9 +513,9 @@ function createSankeyLayout(data, width, height) {
 }
 
 function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
-  // Use responsive margins - much smaller on mobile for maximum spacing
+  // Use responsive margins - smaller on mobile but not too small
   const isMobile = window.innerWidth <= 768
-  const margin = isMobile ? 5 : CHART_CONFIG.margins.top
+  const margin = isMobile ? 15 : CHART_CONFIG.margins.top
   const availableHeight = height - (2 * margin)
   
   // Separate theme and event nodes
@@ -527,23 +527,29 @@ function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
   
   // Then distribute theme nodes evenly in available vertical space
   if (themeNodes.length > 1) {
-    // On mobile, use the full available height for maximum distribution
-    const effectiveHeight = isMobile 
-      ? availableHeight * 0.95  // Use 95% of height on mobile
-      : availableHeight
-    const themeSpacing = effectiveHeight / (themeNodes.length - 1)
-    const startY = margin + (isMobile ? availableHeight * 0.025 : 0) // Start near top on mobile
-    
-    themeNodes.forEach((node, index) => {
-      const newY = startY + (index * themeSpacing)
-      const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
-      
-      // Debug logging to see if heights are being calculated correctly
-      console.log(`Theme node ${node.name}: connections=${node.connectionCount}, height=${nodeHeight}`)
-      
-      node.y0 = newY - (nodeHeight / 2) // Center around the calculated position
-      node.y1 = newY + (nodeHeight / 2)
-    })
+    // On mobile, use simple full-height distribution
+    if (isMobile) {
+      const themeSpacing = availableHeight / (themeNodes.length - 1)
+      themeNodes.forEach((node, index) => {
+        const newY = margin + (index * themeSpacing)
+        const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
+        node.y0 = newY - (nodeHeight / 2)
+        node.y1 = newY + (nodeHeight / 2)
+      })
+    } else {
+      // Desktop logic
+      const themeSpacing = availableHeight / (themeNodes.length - 1)
+      themeNodes.forEach((node, index) => {
+        const newY = margin + (index * themeSpacing)
+        const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
+        
+        // Debug logging to see if heights are being calculated correctly
+        console.log(`Theme node ${node.name}: connections=${node.connectionCount}, height=${nodeHeight}`)
+        
+        node.y0 = newY - (nodeHeight / 2) // Center around the calculated position
+        node.y1 = newY + (nodeHeight / 2)
+      })
+    }
   } else if (themeNodes.length === 1) {
     // Center single theme node
     const nodeHeight = themeNodes[0].calculatedHeight || CHART_CONFIG.standardNodeHeight
@@ -557,19 +563,25 @@ function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
   
   // Distribute event nodes evenly in available vertical space
   if (eventNodes.length > 1) {
-    // On mobile, use the full available height for maximum distribution
-    const effectiveHeight = isMobile 
-      ? availableHeight * 0.95  // Use 95% of height on mobile
-      : availableHeight
-    const eventSpacing = effectiveHeight / (eventNodes.length - 1)
-    const startY = margin + (isMobile ? availableHeight * 0.025 : 0) // Start near top on mobile
-    
-    eventNodes.forEach((node, index) => {
-      const newY = startY + (index * eventSpacing)
-      const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
-      node.y0 = newY - (nodeHeight / 2) // Center around the calculated position  
-      node.y1 = newY + (nodeHeight / 2)
-    })
+    // On mobile, use simple full-height distribution
+    if (isMobile) {
+      const eventSpacing = availableHeight / (eventNodes.length - 1)
+      eventNodes.forEach((node, index) => {
+        const newY = margin + (index * eventSpacing)
+        const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
+        node.y0 = newY - (nodeHeight / 2)
+        node.y1 = newY + (nodeHeight / 2)
+      })
+    } else {
+      // Desktop logic
+      const eventSpacing = availableHeight / (eventNodes.length - 1)
+      eventNodes.forEach((node, index) => {
+        const newY = margin + (index * eventSpacing)
+        const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
+        node.y0 = newY - (nodeHeight / 2) // Center around the calculated position  
+        node.y1 = newY + (nodeHeight / 2)
+      })
+    }
   } else if (eventNodes.length === 1) {
     // Center single event node
     const nodeHeight = eventNodes[0].calculatedHeight || CHART_CONFIG.standardNodeHeight
