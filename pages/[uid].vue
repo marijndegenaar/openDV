@@ -432,7 +432,7 @@ function createSankeyDiagram(data) {
       
       // Use smaller margins on mobile for more diagram space
       const margins = window.innerWidth <= 768
-        ? { top: 20, right: 160, bottom: 20, left: 10 }  // Increased right margin to prevent cutoff
+        ? { top: 20, right: 80, bottom: 20, left: 5 }  // Reduced right margin to use more space
         : CHART_CONFIG.margins
       
       const width = Math.max(containerRect.width - margins.left - margins.right, CHART_CONFIG.minWidth)
@@ -503,7 +503,7 @@ function createSankeyLayout(data, width, height) {
       return 0
     })
     .extent([[0, 0], [width, height]])
-
+  
   const result = sankeyLayout(data)
   
   // Post-process to ensure consistent vertical positioning
@@ -527,11 +527,13 @@ function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
   
   // Then distribute theme nodes evenly in available vertical space
   if (themeNodes.length > 1) {
-    // On mobile, use simple full-height distribution
+    // On mobile, use more compact spacing for themes to allow closer horizontal positioning
     if (isMobile) {
-      const themeSpacing = availableHeight / (themeNodes.length - 1)
+      const compactHeight = availableHeight * 0.7 // Use only 70% of height for themes on mobile
+      const startY = margin + (availableHeight - compactHeight) / 2 // Center the compact group
+      const themeSpacing = compactHeight / (themeNodes.length - 1)
       themeNodes.forEach((node, index) => {
-        const newY = margin + (index * themeSpacing)
+        const newY = startY + (index * themeSpacing)
         const nodeHeight = node.calculatedHeight || CHART_CONFIG.standardNodeHeight
         node.y0 = newY - (nodeHeight / 2)
         node.y1 = newY + (nodeHeight / 2)
@@ -877,7 +879,7 @@ function createThemeLabels(svg, result, width, fontSize) {
     if (isMobile && themeName.length > 12) {
       // Split long theme names into multiple lines on mobile
       const words = themeName.split(' ')
-      const maxWidth = 100 // Maximum width for wrapped text on mobile
+      const maxWidth = 80 // Reduced width for more compact theme labels on mobile
       let lines = []
       let currentLine = ''
       
