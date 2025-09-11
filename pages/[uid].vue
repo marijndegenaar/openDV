@@ -513,9 +513,9 @@ function createSankeyLayout(data, width, height) {
 }
 
 function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
-  // Use responsive margins - smaller on mobile for better spacing
+  // Use responsive margins - much smaller on mobile for maximum spacing
   const isMobile = window.innerWidth <= 768
-  const margin = isMobile ? 10 : CHART_CONFIG.margins.top
+  const margin = isMobile ? 5 : CHART_CONFIG.margins.top
   const availableHeight = height - (2 * margin)
   
   // Separate theme and event nodes
@@ -527,12 +527,12 @@ function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
   
   // Then distribute theme nodes evenly in available vertical space
   if (themeNodes.length > 1) {
-    // On mobile, use more generous spacing if we have fewer nodes
-    const effectiveHeight = isMobile && themeNodes.length <= 3 
-      ? availableHeight * 0.8  // Use 80% of height for better visual balance on mobile
+    // On mobile, use the full available height for maximum distribution
+    const effectiveHeight = isMobile 
+      ? availableHeight * 0.95  // Use 95% of height on mobile
       : availableHeight
     const themeSpacing = effectiveHeight / (themeNodes.length - 1)
-    const startY = margin + (isMobile && themeNodes.length <= 3 ? availableHeight * 0.1 : 0) // Center the group on mobile
+    const startY = margin + (isMobile ? availableHeight * 0.025 : 0) // Start near top on mobile
     
     themeNodes.forEach((node, index) => {
       const newY = startY + (index * themeSpacing)
@@ -557,12 +557,12 @@ function normalizeNodePositions(sankeyResult, height, themeCount, eventCount) {
   
   // Distribute event nodes evenly in available vertical space
   if (eventNodes.length > 1) {
-    // On mobile, use more generous spacing if we have fewer nodes
-    const effectiveHeight = isMobile && eventNodes.length <= 10 
-      ? availableHeight * 0.9  // Use 90% of height for events (they usually have more items)
+    // On mobile, use the full available height for maximum distribution
+    const effectiveHeight = isMobile 
+      ? availableHeight * 0.95  // Use 95% of height on mobile
       : availableHeight
     const eventSpacing = effectiveHeight / (eventNodes.length - 1)
-    const startY = margin + (isMobile && eventNodes.length <= 10 ? availableHeight * 0.05 : 0) // Center the group on mobile
+    const startY = margin + (isMobile ? availableHeight * 0.025 : 0) // Start near top on mobile
     
     eventNodes.forEach((node, index) => {
       const newY = startY + (index * eventSpacing)
