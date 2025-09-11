@@ -432,7 +432,7 @@ function createSankeyDiagram(data) {
       
       // Use smaller margins on mobile for more diagram space
       const margins = window.innerWidth <= 768
-        ? { top: 20, right: 80, bottom: 20, left: 5 }  // Reduced right margin to use more space
+        ? { top: 20, right: 140, bottom: 20, left: 5 }  // Increased right margin for event titles
         : CHART_CONFIG.margins
       
       const width = Math.max(containerRect.width - margins.left - margins.right, CHART_CONFIG.minWidth)
