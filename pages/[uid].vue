@@ -432,7 +432,7 @@ function createSankeyDiagram(data) {
       
       // Use smaller margins on mobile for more diagram space
       const margins = window.innerWidth <= 768
-        ? { top: 20, right: 180, bottom: 20, left: 10 }
+        ? { top: 20, right: 160, bottom: 20, left: 10 }  // Increased right margin to prevent cutoff
         : CHART_CONFIG.margins
       
       const width = Math.max(containerRect.width - margins.left - margins.right, CHART_CONFIG.minWidth)
@@ -846,19 +846,14 @@ function createLabels(svg, result, width) {
 }
 
 function createThemeLabels(svg, result, width, fontSize) {
-  const labels = svg.append("g")
-    .selectAll("text")
+  const isMobile = window.innerWidth <= 768
+  const labelGroup = svg.append("g")
+  
+  const labels = labelGroup
+    .selectAll("g")
     .data(result.nodes.filter(d => d.x0 < width / 2))
-    .enter().append("text")
-    .attr("x", d => d.x1 + 6)
-    .attr("y", d => (d.y1 + d.y0) / 2)
-    .attr("dy", "0.35em")
-    .attr("text-anchor", "start")
-    .text(d => d.name.replace(/\b\w/g, l => l.toUpperCase()))
-    .attr("font-size", `${fontSize}px`)
-    .attr("fill", COLORS.text.primary)
-    .attr("font-weight", "normal")
-    .attr("class", "label theme-label")
+    .enter().append("g")
+    .attr("class", "theme-label-group")
     .style("cursor", "pointer")
     .style("pointer-events", "all")
     .on("click", (event, d) => {
@@ -870,6 +865,59 @@ function createThemeLabels(svg, result, width, fontSize) {
         description: d.themeDescription
       }
     })
+  
+  // Add text with wrapping for mobile
+  labels.each(function(d) {
+    const group = d3.select(this)
+    const themeName = d.name.replace(/\b\w/g, l => l.toUpperCase())
+    const x = d.x1 + 6
+    const y = (d.y1 + d.y0) / 2
+    const textFontSize = isMobile ? fontSize - 2 : fontSize
+    
+    if (isMobile && themeName.length > 12) {
+      // Split long theme names into multiple lines on mobile
+      const words = themeName.split(' ')
+      const maxWidth = 100 // Maximum width for wrapped text on mobile
+      let lines = []
+      let currentLine = ''
+      
+      words.forEach(word => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word
+        if (testLine.length * (textFontSize * 0.6) > maxWidth && currentLine) {
+          lines.push(currentLine)
+          currentLine = word
+        } else {
+          currentLine = testLine
+        }
+      })
+      if (currentLine) lines.push(currentLine)
+      
+      // Add each line as a separate tspan
+      lines.forEach((line, index) => {
+        group.append("text")
+          .attr("x", x)
+          .attr("y", y + (index - (lines.length - 1) / 2) * (textFontSize + 2))
+          .attr("text-anchor", "start")
+          .attr("font-size", `${textFontSize}px`)
+          .attr("fill", COLORS.text.primary)
+          .attr("font-weight", "normal")
+          .attr("class", "label theme-label")
+          .text(line)
+      })
+    } else {
+      // Single line for desktop or short names
+      group.append("text")
+        .attr("x", x)
+        .attr("y", y)
+        .attr("dy", "0.35em")
+        .attr("text-anchor", "start")
+        .attr("font-size", `${textFontSize}px`)
+        .attr("fill", COLORS.text.primary)
+        .attr("font-weight", "normal")
+        .attr("class", "label theme-label")
+        .text(themeName)
+    }
+  })
   
   // Only add hover events on non-touch devices
   if (!isTouchDevice.value) {
