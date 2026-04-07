@@ -113,17 +113,16 @@ const PAGE_PALETTE = [
   '#C257A2', // rose
 ]
 
-function hashUid(uid) {
-  let h = 0
-  for (let i = 0; i < uid.length; i++) {
-    h = (h * 31 + uid.charCodeAt(i)) >>> 0
+// Hash any string to a palette index using FNV-1a for better distribution
+function hashToPaletteIndex(str) {
+  let h = 2166136261 >>> 0
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 16777619) >>> 0
   }
   return h % PAGE_PALETTE.length
 }
 
-const PRIMARY_COLOR = PAGE_PALETTE[hashUid(route.params.uid || '')]
-
-// Generate color gradations for all themes on this page
 function generateColorGradations(baseColor, count) {
   const colors = []
   const hex = baseColor.replace('#', '')
@@ -141,14 +140,21 @@ function generateColorGradations(baseColor, count) {
   return colors
 }
 
+// Mutable — updated once the Prismic document ID is known (better distribution than UID)
 const COLORS = {
-  primary: PRIMARY_COLOR,
-  custom: generateColorGradations(PRIMARY_COLOR, 6),
+  primary: PAGE_PALETTE[hashToPaletteIndex(route.params.uid || '')],
+  custom: generateColorGradations(PAGE_PALETTE[hashToPaletteIndex(route.params.uid || '')], 6),
   text: { primary: '#111', white: '#fff' },
   tooltip: {
     bg: 'rgba(0,0,0,0.9)',
     shadow: '0 4px 8px rgba(0,0,0,0.3)'
   }
+}
+
+function applyPageColor(docId) {
+  const base = PAGE_PALETTE[hashToPaletteIndex(docId)]
+  COLORS.primary = base
+  COLORS.custom = generateColorGradations(base, 6)
 }
 
 // ===== REACTIVE STATE =====
@@ -325,13 +331,15 @@ async function loadPrismicData() {
     error.value = null
     debugInfo.value = 'Loading Prismic data...'
     
-    const { data } = await client.getByUID('diagram', route.params.uid)
-    
-    if (!data) {
+    const doc = await client.getByUID('diagram', route.params.uid)
+
+    if (!doc?.data) {
       throw new Error('Diagram page not found')
     }
-    
-    prismicData.value = data
+
+    applyPageColor(doc.id || route.params.uid)
+    prismicData.value = doc.data
+    const data = doc.data
     debugInfo.value = `Prismic data loaded: ${data.title}`
     
     if (data.csv_file?.url) {
@@ -1013,7 +1021,7 @@ function createYearLabels(svg, result, width, fontSize) {
     .style("align-items", "center")
     .style("justify-content", "center")
     .style("height", "100%")
-    .style("background", PRIMARY_COLOR)
+    .style("background", COLORS.primary)
     .style("border-radius", "1em")
     .style("padding", "2px 6px")
     .style("font-size", `${fontSize - 6}px`)
