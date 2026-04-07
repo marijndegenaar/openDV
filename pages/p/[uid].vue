@@ -1,31 +1,29 @@
 <template lang="pug">
-#home(v-if="homepage")
+.page-wrap(v-if="page")
+  .page-header.border-b.border-black.px-6.py-8
+    h1.text-xl.font-bold {{ page.data.title }}
   .page-content.px-6.py-8.max-w-3xl
-    PrismicRichText(:field="homepage.data.content")
+    PrismicRichText(:field="page.data.content")
 </template>
 
 <script setup>
+const route = useRoute()
 const { client } = usePrismic()
 
-const { data: homepage } = await useAsyncData('homepage', () =>
-  client.getSingle('homepage')
+const { data: page } = await useAsyncData(`page-${route.params.uid}`, () =>
+  client.getByUID('page', route.params.uid)
 )
 
 useHead({
-  title: computed(() => homepage.value?.data.meta_title || 'OPEN DV'),
+  title: computed(() => page.value?.data.meta_title || page.value?.data.title || 'OPEN DV'),
   meta: [
-    { name: 'description', content: computed(() => homepage.value?.data.meta_description || '') }
+    { name: 'description', content: computed(() => page.value?.data.meta_description || '') }
   ]
 })
 </script>
 
 <style lang="sass" scoped>
 .page-content
-  :deep(h1)
-    font-size: 1.5rem
-    font-weight: bold
-    margin-bottom: 1rem
-
   :deep(h2)
     font-size: 1.25rem
     font-weight: bold

@@ -18,7 +18,7 @@
             :key="theme.name"
             :style="{ backgroundColor: theme.color }"
           ) {{ theme.name }}
-      .event-description {{ selectedEvent.description }}
+      .event-description(v-html="parseDescription(selectedEvent.description)")
     .theme-info.p-4.relative(v-else-if="selectedTheme")
       .close-button.absolute.top-2.right-2.cursor-pointer.hover_text-gray-700.text-xl(@click.stop="clearSelection") ×
       h3.theme-title.text-lg.font-bold.mb-3.leading-tight {{ selectedTheme.name }}
@@ -53,8 +53,7 @@
           .description-content
             p.text-sm.leading-relaxed(v-if="!showExpandedDescription && selectedEvent.shortened_description") 
               | {{ selectedEvent.shortened_description }}
-            p.text-sm.leading-relaxed(v-else) 
-              | {{ selectedEvent.description }}
+            p.text-sm.leading-relaxed(v-else, v-html="parseDescription(selectedEvent.description)")
           
           .more-button-container.mt-3(v-if="selectedEvent.shortened_description && selectedEvent.shortened_description !== selectedEvent.description")
             button.more-button.text-purple-600.hover_text-purple-800.text-sm.font-medium.underline(@click="showExpandedDescription = !showExpandedDescription")
@@ -102,18 +101,38 @@ const CHART_CONFIG = {
   connectionHeightMultiplier: 6
 }
 
-const PRIMARY_COLOR = '#8863EB'
+// 8-color harmonic palette — one per case study page
+const PAGE_PALETTE = [
+  '#D95F5F', // coral red
+  '#D98840', // amber
+  '#C4A832', // golden
+  '#5CAE64', // green
+  '#3AADAD', // teal
+  '#4B8FD4', // blue
+  '#8863EB', // violet
+  '#C257A2', // rose
+]
 
-// Generate color variations for themes
+function hashUid(uid) {
+  let h = 0
+  for (let i = 0; i < uid.length; i++) {
+    h = (h * 31 + uid.charCodeAt(i)) >>> 0
+  }
+  return h % PAGE_PALETTE.length
+}
+
+const PRIMARY_COLOR = PAGE_PALETTE[hashUid(route.params.uid || '')]
+
+// Generate color gradations for all themes on this page
 function generateColorGradations(baseColor, count) {
   const colors = []
   const hex = baseColor.replace('#', '')
   const r = parseInt(hex.substr(0, 2), 16)
   const g = parseInt(hex.substr(2, 2), 16)
   const b = parseInt(hex.substr(4, 2), 16)
-  
+
   for (let i = 0; i < count; i++) {
-    const factor = 1 - (i * 0.7) / (count - 1)
+    const factor = 1 - (i * 0.85) / (count - 1)
     const newR = Math.round(r + (255 - r) * (1 - factor))
     const newG = Math.round(g + (255 - g) * (1 - factor))
     const newB = Math.round(b + (255 - b) * (1 - factor))
@@ -126,9 +145,9 @@ const COLORS = {
   primary: PRIMARY_COLOR,
   custom: generateColorGradations(PRIMARY_COLOR, 6),
   text: { primary: '#111', white: '#fff' },
-  tooltip: { 
-    bg: 'rgba(0,0,0,0.9)', 
-    shadow: '0 4px 8px rgba(0,0,0,0.3)' 
+  tooltip: {
+    bg: 'rgba(0,0,0,0.9)',
+    shadow: '0 4px 8px rgba(0,0,0,0.3)'
   }
 }
 
@@ -146,6 +165,34 @@ const highlightedEventIndex = ref(null)
 const hoverTimeout = ref(null)
 const showExpandedDescription = ref(false)
 const isTouchDevice = ref(false)
+
+// ===== DESCRIPTION PARSING =====
+function parseDescription(text) {
+  if (!text) return ''
+
+  // Collect <ref> tags before escaping
+  const refs = []
+  const withoutRefs = text.replace(/<ref>(.*?)<\/ref>/g, (_, content) => {
+    refs.push(content)
+    return ''
+  })
+
+  // Escape HTML first to prevent XSS, then restore only allowed tags
+  const escaped = withoutRefs
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  let result = escaped
+    .replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/g, '<em>$1</em>')
+    .replace(/&lt;pb&gt;/g, '<br><br>')
+
+  if (refs.length) {
+    const items = refs.map(r => `<li>${r.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</li>`).join('')
+    result += `<p class="text-sm font-bold mt-4">References</p><ul class="text-sm list-disc list-inside capitalize">${items}</ul>`
+  }
+
+  return result
+}
 
 // ===== COMPUTED PROPERTIES =====
 const selectedEventThemes = computed(() => {
@@ -384,10 +431,10 @@ function transformCSVToSankey(csvData, themes) {
   const links = []
   sortedData.forEach((row, index) => {
     const eventIndex = themes.length + index
-    const eventThemes = (row.Theme || row.theme).split(';').flatMap(themeGroup => 
+    const eventThemes = (row.Theme || row.theme).split(';').flatMap(themeGroup =>
       themeGroup.split(',').map(t => t.trim())
     )
-    
+
     eventThemes.forEach(theme => {
       const themeIndex = themes.indexOf(theme)
       if (themeIndex !== -1) {

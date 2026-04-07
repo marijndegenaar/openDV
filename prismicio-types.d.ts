@@ -76,6 +76,17 @@ type AboutDocumentDataSlicesSlice = never;
  */
 interface AboutDocumentData {
   /**
+   * Title field in *About*
+   *
+   * - **Field Type**: Text
+   * - **Placeholder**: *None*
+   * - **API ID Path**: about.title
+   * - **Tab**: Main
+   * - **Documentation**: https://prismic.io/docs/fields/text
+   */
+  title: prismic.KeyTextField;
+
+  /**
    * Content field in *About*
    *
    * - **Field Type**: Rich Text
@@ -141,6 +152,99 @@ interface AboutDocumentData {
 export type AboutDocument<Lang extends string = string> =
   prismic.PrismicDocumentWithoutUID<Simplify<AboutDocumentData>, "about", Lang>;
 
+type DiagramDocumentDataSlicesSlice = never;
+
+/**
+ * Content for Diagram documents
+ */
+interface DiagramDocumentData {
+  /**
+   * Title field in *Diagram*
+   *
+   * - **Field Type**: Text
+   * - **Placeholder**: *None*
+   * - **API ID Path**: diagram.title
+   * - **Tab**: Main
+   * - **Documentation**: https://prismic.io/docs/fields/text
+   */
+  title: prismic.KeyTextField;
+
+  /**
+   * CSV File field in *Diagram*
+   *
+   * - **Field Type**: Link
+   * - **Placeholder**: *None*
+   * - **API ID Path**: diagram.csv_file
+   * - **Tab**: Main
+   * - **Documentation**: https://prismic.io/docs/fields/link
+   */
+  csv_file: prismic.LinkField<
+    string,
+    string,
+    unknown,
+    prismic.FieldState,
+    never
+  >;
+
+  /**
+   * Slice Zone field in *Diagram*
+   *
+   * - **Field Type**: Slice Zone
+   * - **Placeholder**: *None*
+   * - **API ID Path**: diagram.slices[]
+   * - **Tab**: Main
+   * - **Documentation**: https://prismic.io/docs/slices
+   */
+  slices: prismic.SliceZone<DiagramDocumentDataSlicesSlice> /**
+   * Meta Title field in *Diagram*
+   *
+   * - **Field Type**: Text
+   * - **Placeholder**: A title of the page used for social media and search engines
+   * - **API ID Path**: diagram.meta_title
+   * - **Tab**: SEO & Metadata
+   * - **Documentation**: https://prismic.io/docs/fields/text
+   */;
+  meta_title: prismic.KeyTextField;
+
+  /**
+   * Meta Description field in *Diagram*
+   *
+   * - **Field Type**: Text
+   * - **Placeholder**: A brief summary of the page
+   * - **API ID Path**: diagram.meta_description
+   * - **Tab**: SEO & Metadata
+   * - **Documentation**: https://prismic.io/docs/fields/text
+   */
+  meta_description: prismic.KeyTextField;
+
+  /**
+   * Meta Image field in *Diagram*
+   *
+   * - **Field Type**: Image
+   * - **Placeholder**: *None*
+   * - **API ID Path**: diagram.meta_image
+   * - **Tab**: SEO & Metadata
+   * - **Documentation**: https://prismic.io/docs/fields/image
+   */
+  meta_image: prismic.ImageField<never>;
+}
+
+/**
+ * Diagram document from Prismic
+ *
+ * - **API ID**: `diagram`
+ * - **Repeatable**: `true`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type DiagramDocument<Lang extends string = string> =
+  prismic.PrismicDocumentWithUID<
+    Simplify<DiagramDocumentData>,
+    "diagram",
+    Lang
+  >;
+
 type HomepageDocumentDataSlicesSlice = never;
 
 /**
@@ -148,26 +252,15 @@ type HomepageDocumentDataSlicesSlice = never;
  */
 interface HomepageDocumentData {
   /**
-   * External video file field in *Homepage*
+   * Content field in *Homepage*
    *
-   * - **Field Type**: Text
-   * - **Placeholder**: Place the link to you video file on Vimeo here
-   * - **API ID Path**: homepage.external_video_file
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/text
-   */
-  external_video_file: prismic.KeyTextField;
-
-  /**
-   * Featured video file field in *Homepage*
-   *
-   * - **Field Type**: Link to Media
+   * - **Field Type**: Rich Text
    * - **Placeholder**: *None*
-   * - **API ID Path**: homepage.featured_video_file
+   * - **API ID Path**: homepage.content
    * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/link-to-media
+   * - **Documentation**: https://prismic.io/docs/fields/rich-text
    */
-  featured_video_file: prismic.LinkToMediaField<prismic.FieldState, never>;
+  content: prismic.RichTextField;
 
   /**
    * Slice Zone field in *Homepage*
@@ -228,308 +321,94 @@ export type HomepageDocument<Lang extends string = string> =
     Lang
   >;
 
-/**
- * Item in *Project → Credits*
- */
-export interface ProjectDocumentDataCreditsItem {
-  /**
-   * Credit Title field in *Project → Credits*
-   *
-   * - **Field Type**: Text
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.credits[].credit_title
-   * - **Documentation**: https://prismic.io/docs/fields/text
-   */
-  credit_title: prismic.KeyTextField;
-
-  /**
-   * Credit Name field in *Project → Credits*
-   *
-   * - **Field Type**: Text
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.credits[].credit_name
-   * - **Documentation**: https://prismic.io/docs/fields/text
-   */
-  credit_name: prismic.KeyTextField;
-}
+type PageDocumentDataSlicesSlice = never;
 
 /**
- * Item in *Project → Logos*
+ * Content for Page documents
  */
-export interface ProjectDocumentDataLogosItem {
+interface PageDocumentData {
   /**
-   * Logo field in *Project → Logos*
-   *
-   * - **Field Type**: Image
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.logos[].logo
-   * - **Documentation**: https://prismic.io/docs/fields/image
-   */
-  logo: prismic.ImageField<never>;
-
-  /**
-   * Title field in *Project → Logos*
+   * Title field in *Page*
    *
    * - **Field Type**: Text
    * - **Placeholder**: *None*
-   * - **API ID Path**: project.logos[].title
+   * - **API ID Path**: page.title
+   * - **Tab**: Main
    * - **Documentation**: https://prismic.io/docs/fields/text
    */
   title: prismic.KeyTextField;
 
   /**
-   * Subtitle field in *Project → Logos*
-   *
-   * - **Field Type**: Text
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.logos[].subtitle
-   * - **Documentation**: https://prismic.io/docs/fields/text
-   */
-  subtitle: prismic.KeyTextField;
-
-  /**
-   * Link field in *Project → Logos*
-   *
-   * - **Field Type**: Link
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.logos[].link
-   * - **Documentation**: https://prismic.io/docs/fields/link
-   */
-  link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
-}
-
-type ProjectDocumentDataSlicesSlice = never;
-
-/**
- * Item in *Project → Slideshow*
- */
-export interface ProjectDocumentDataSlideshowItem {
-  /**
-   * Image field in *Project → Slideshow*
-   *
-   * - **Field Type**: Image
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.slideshow[].image
-   * - **Documentation**: https://prismic.io/docs/fields/image
-   */
-  image: prismic.ImageField<never>;
-}
-
-/**
- * Content for Project documents
- */
-interface ProjectDocumentData {
-  /**
-   * Project category field in *Project*
-   *
-   * - **Field Type**: Select
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.project_category
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/select
-   */
-  project_category: prismic.SelectField<
-    | "Short film"
-    | "Feature film"
-    | "Photography"
-    | "Music video"
-    | "Video campaign"
-    | "Concept video"
-  >;
-
-  /**
-   * Project title field in *Project*
-   *
-   * - **Field Type**: Text
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.project_title
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/text
-   */
-  project_title: prismic.KeyTextField;
-
-  /**
-   * Subtitle field in *Project*
-   *
-   * - **Field Type**: Text
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.subtitle
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/text
-   */
-  subtitle: prismic.KeyTextField;
-
-  /**
-   * Year field in *Project*
-   *
-   * - **Field Type**: Number
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.year
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/number
-   */
-  year: prismic.NumberField;
-
-  /**
-   * Title Image field in *Project*
-   *
-   * - **Field Type**: Image
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.title_image
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/image
-   */
-  title_image: prismic.ImageField<never>;
-
-  /**
-   * Project description field in *Project*
+   * Content field in *Page*
    *
    * - **Field Type**: Rich Text
    * - **Placeholder**: *None*
-   * - **API ID Path**: project.project_description
+   * - **API ID Path**: page.content
    * - **Tab**: Main
    * - **Documentation**: https://prismic.io/docs/fields/rich-text
    */
-  project_description: prismic.RichTextField;
+  content: prismic.RichTextField;
 
   /**
-   * Video embed field in *Project*
-   *
-   * - **Field Type**: Embed
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.video_embed
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/embed
-   */
-  video_embed: prismic.EmbedField;
-
-  /**
-   * Credits field in *Project*
-   *
-   * - **Field Type**: Group
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.credits[]
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
-   */
-  credits: prismic.GroupField<Simplify<ProjectDocumentDataCreditsItem>>;
-
-  /**
-   * Logos field in *Project*
-   *
-   * - **Field Type**: Group
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.logos[]
-   * - **Tab**: Main
-   * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
-   */
-  logos: prismic.GroupField<Simplify<ProjectDocumentDataLogosItem>>;
-
-  /**
-   * Slice Zone field in *Project*
+   * Slice Zone field in *Page*
    *
    * - **Field Type**: Slice Zone
    * - **Placeholder**: *None*
-   * - **API ID Path**: project.slices[]
+   * - **API ID Path**: page.slices[]
    * - **Tab**: Main
    * - **Documentation**: https://prismic.io/docs/slices
    */
-  slices: prismic.SliceZone<ProjectDocumentDataSlicesSlice> /**
-   * Meta Title field in *Project*
+  slices: prismic.SliceZone<PageDocumentDataSlicesSlice> /**
+   * Meta Title field in *Page*
    *
    * - **Field Type**: Text
    * - **Placeholder**: A title of the page used for social media and search engines
-   * - **API ID Path**: project.meta_title
+   * - **API ID Path**: page.meta_title
    * - **Tab**: SEO & Metadata
    * - **Documentation**: https://prismic.io/docs/fields/text
    */;
   meta_title: prismic.KeyTextField;
 
   /**
-   * Meta Description field in *Project*
+   * Meta Description field in *Page*
    *
    * - **Field Type**: Text
    * - **Placeholder**: A brief summary of the page
-   * - **API ID Path**: project.meta_description
+   * - **API ID Path**: page.meta_description
    * - **Tab**: SEO & Metadata
    * - **Documentation**: https://prismic.io/docs/fields/text
    */
   meta_description: prismic.KeyTextField;
 
   /**
-   * Meta Image field in *Project*
+   * Meta Image field in *Page*
    *
    * - **Field Type**: Image
    * - **Placeholder**: *None*
-   * - **API ID Path**: project.meta_image
+   * - **API ID Path**: page.meta_image
    * - **Tab**: SEO & Metadata
    * - **Documentation**: https://prismic.io/docs/fields/image
    */
-  meta_image: prismic.ImageField<never> /**
-   * Featured Video field in *Project*
-   *
-   * - **Field Type**: Link to Media
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.featured_video
-   * - **Tab**: Media
-   * - **Documentation**: https://prismic.io/docs/fields/link-to-media
-   */;
-  featured_video: prismic.LinkToMediaField<prismic.FieldState, never>;
-
-  /**
-   * Featured video link field in *Project*
-   *
-   * - **Field Type**: Text
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.video_link
-   * - **Tab**: Media
-   * - **Documentation**: https://prismic.io/docs/fields/text
-   */
-  video_link: prismic.KeyTextField;
-
-  /**
-   * Featured embed code field in *Project*
-   *
-   * - **Field Type**: Text
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.embed_code
-   * - **Tab**: Media
-   * - **Documentation**: https://prismic.io/docs/fields/text
-   */
-  embed_code: prismic.KeyTextField;
-
-  /**
-   * Slideshow field in *Project*
-   *
-   * - **Field Type**: Group
-   * - **Placeholder**: *None*
-   * - **API ID Path**: project.slideshow[]
-   * - **Tab**: Media
-   * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
-   */
-  slideshow: prismic.GroupField<Simplify<ProjectDocumentDataSlideshowItem>>;
+  meta_image: prismic.ImageField<never>;
 }
 
 /**
- * Project document from Prismic
+ * Page document from Prismic
  *
- * - **API ID**: `project`
+ * - **API ID**: `page`
  * - **Repeatable**: `true`
  * - **Documentation**: https://prismic.io/docs/content-modeling
  *
  * @typeParam Lang - Language API ID of the document.
  */
-export type ProjectDocument<Lang extends string = string> =
-  prismic.PrismicDocumentWithUID<
-    Simplify<ProjectDocumentData>,
-    "project",
-    Lang
-  >;
+export type PageDocument<Lang extends string = string> =
+  prismic.PrismicDocumentWithUID<Simplify<PageDocumentData>, "page", Lang>;
 
 export type AllDocumentTypes =
   | AboutDocument
+  | DiagramDocument
   | HomepageDocument
-  | ProjectDocument;
+  | PageDocument;
 
 declare module "@prismicio/client" {
   interface CreateClient {
@@ -555,15 +434,15 @@ declare module "@prismicio/client" {
       AboutDocument,
       AboutDocumentData,
       AboutDocumentDataSlicesSlice,
+      DiagramDocument,
+      DiagramDocumentData,
+      DiagramDocumentDataSlicesSlice,
       HomepageDocument,
       HomepageDocumentData,
       HomepageDocumentDataSlicesSlice,
-      ProjectDocument,
-      ProjectDocumentData,
-      ProjectDocumentDataCreditsItem,
-      ProjectDocumentDataLogosItem,
-      ProjectDocumentDataSlicesSlice,
-      ProjectDocumentDataSlideshowItem,
+      PageDocument,
+      PageDocumentData,
+      PageDocumentDataSlicesSlice,
       AllDocumentTypes,
     };
   }
