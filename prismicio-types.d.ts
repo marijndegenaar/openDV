@@ -170,6 +170,17 @@ interface DiagramDocumentData {
   title: prismic.KeyTextField;
 
   /**
+   * Description field in *Diagram*
+   *
+   * - **Field Type**: Rich Text
+   * - **Placeholder**: *None*
+   * - **API ID Path**: diagram.description
+   * - **Tab**: Main
+   * - **Documentation**: https://prismic.io/docs/fields/rich-text
+   */
+  description: prismic.RichTextField;
+
+  /**
    * CSV File field in *Diagram*
    *
    * - **Field Type**: Link

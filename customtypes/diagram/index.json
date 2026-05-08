@@ -19,6 +19,15 @@
           "placeholder": ""
         }
       },
+      "description": {
+        "type": "StructuredText",
+        "config": {
+          "label": "Description",
+          "placeholder": "",
+          "allowTargetBlank": true,
+          "multi": "paragraph,strong,em,hyperlink,list-item,o-list-item"
+        }
+      },
       "csv_file": {
         "type": "Link",
         "config": {

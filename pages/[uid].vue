@@ -24,8 +24,8 @@
       h3.theme-title.text-lg.font-bold.mb-3.leading-tight {{ selectedTheme.name }}
       .theme-description {{ selectedTheme.description }}
     .no-selection.p-4(v-else)
-      h2.text-lg.font-bold.mb-4.leading-snug Welcome to the Populist Genealogies Project
-      p Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis vel sapien vitae eros consectetur malesuada. Lorem ipsum dolor sit amet, consectetur adipiscing elit. In vel dignissim velit. Nullam lobortis ipsum vitae lacus efficitur varius.
+      h2.text-lg.font-bold.mb-4.leading-snug {{ prismicData?.title }}
+      PrismicRichText(v-if="prismicData?.description" :field="prismicData.description")
 
   //- Mobile Modal
   .mobile-modal.fixed.bottom-0.left-0.right-0.bg-white.border-t-2.border-gray-200.shadow-lg.transform.transition-transform.duration-300.ease-in-out.z-50.md_hidden(
